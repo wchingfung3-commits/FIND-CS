@@ -1,7 +1,7 @@
-import * as Icons from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { icons as Icons } from "@/lib/icons";
 import type { Route } from "@/types";
 import { channelMeta } from "@/lib/data";
+import { safeActionUrl } from "@/lib/catalog";
 
 interface OtherContactCardProps {
   route: Route;
@@ -9,11 +9,11 @@ interface OtherContactCardProps {
 
 export function OtherContactCard({ route }: OtherContactCardProps) {
   const meta = channelMeta[route.channelType];
-  const IconComponent = (Icons as unknown as Record<string, LucideIcon>)[meta.icon] ?? Icons.Mail;
+  const IconComponent = Icons[meta.icon] ?? Icons.Mail;
 
   return (
     <a
-      href={route.actionUrl ?? "#"}
+      href={safeActionUrl(route.actionUrl)}
       target={route.actionUrl?.startsWith("http") ? "_blank" : undefined}
       rel={route.actionUrl?.startsWith("http") ? "noopener noreferrer" : undefined}
       className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-5 py-3.5 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.99]"

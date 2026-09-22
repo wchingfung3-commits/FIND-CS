@@ -16,7 +16,7 @@ export function IssueRoutePage({ companyId, issueId, navigate }: IssueRoutePageP
   const company = getCompanyById(companyId);
   const issue = getIssueById(issueId);
 
-  if (!company || !issue) {
+  if (!company || !issue || issue.companyId !== companyId) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-6">
         <BackButton onClick={() => navigate(`/company/${companyId}`)} />

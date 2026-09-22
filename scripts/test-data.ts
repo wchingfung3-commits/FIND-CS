@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import { validateData, type DataSet } from '../src/lib/validate-data';
+import { safeActionUrl } from '../src/lib/catalog';
+import { companies } from '../src/data/companies';
+import { industries } from '../src/data/industries';
+import { issues } from '../src/data/issues';
+import { routes } from '../src/data/routes';
+import { verifications } from '../src/data/verifications';
+
+const base: DataSet = {companies, industries, issues, routes, verifications};
+let count = 0;
+function test(name: string, mutate: (data: DataSet) => void, pattern: RegExp) {
+  const copy = structuredClone(base);
+  mutate(copy);
+  assert.match(validateData(copy).errors.join('\n'), pattern, name);
+  console.log(`PASS ${name}`); count++;
+}
+assert.equal(validateData(base).errors.length, 0);
+assert.equal(validateData(base).warnings.length, 2);
+test('duplicate route', d => d.routes.push({...d.routes[0]}), /duplicate id/);
+test('missing company', d => { d.routes[0].companyId = 'missing'; }, /missing company/);
+test('missing issue', d => { d.routes[0].issueId = 'missing'; }, /missing issue/);
+test('cross-company issue', d => { d.routes[0].issueId = 'pccw-internet'; }, /different companies/);
+test('orphan verification', d => { d.verifications[0].routeId = 'missing'; }, /missing route/);
+test('verified without evidence', d => { d.verifications.splice(0, 1); }, /no successful evidence/);
+test('empty evidence', d => { d.verifications[0].evidence = ' '; }, /no evidence text/);
+test('invalid calendar date', d => { d.verifications[0].testDate = '2026-02-30'; }, /invalid testDate/);
+test('wrong verified date', d => { d.routes[0].lastVerified = '2026-09-17'; }, /does not match/);
+test('new failed test', d => { d.verifications.push({...d.verifications[0], id: 'failure', testDate: '2026-09-19', result: 'failed'}); }, /unsuccessful test/);
+test('same-day conflicting test', d => { d.verifications.push({...d.verifications[0], id: 'failure', result: 'failed'}); }, /unsuccessful test/);
+test('router without issues', d => { d.companies.find(c => c.id === 'hangseng')!.supportModel = 'router'; }, /has no issues/);
+test('simple with issues', d => { d.companies[0].supportModel = 'simple'; }, /not a router/);
+test('issue without route', d => { d.routes = d.routes.filter(r => r.issueId !== 'hsbc-transfer'); }, /has no route/);
+const review = structuredClone(base);
+review.routes[0].verificationStatus = 'needs_review';
+delete review.routes[0].lastVerified;
+assert.equal(validateData(review).errors.length, 0, 'explicit review must not be forced to verified');
+assert.equal(safeActionUrl('javascript:alert(1)'), undefined);
+assert.equal(safeActionUrl('data:text/html,hello'), undefined);
+assert.equal(safeActionUrl('https://example.com'), 'https://example.com');
+assert.equal(safeActionUrl('tel:+85222333000'), 'tel:+85222333000');
+console.log(`All ${count} rejection cases, current fixtures, review state and URL safety checks passed.`);

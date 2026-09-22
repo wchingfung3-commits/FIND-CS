@@ -1,9 +1,8 @@
-import * as Icons from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { icons as Icons } from "@/lib/icons";
 import { BackButton } from "@/components/BackButton";
-import { RouteCard } from "@/components/RouteCard";
 import { Disclaimer } from "@/components/Disclaimer";
-import { getCompanyById, getRouteById, getHumanRoutes, channelMeta } from "@/lib/data";
+import { getCompanyById, getRouteById, channelMeta } from "@/lib/data";
+import { safeActionUrl } from "@/lib/catalog";
 import type { Route } from "@/types";
 
 interface RoutePageProps {
@@ -14,7 +13,7 @@ interface RoutePageProps {
 
 function RouteDetail({ route }: { route: Route }) {
   const meta = channelMeta[route.channelType];
-  const IconComponent = (Icons as unknown as Record<string, LucideIcon>)[meta.icon] ?? Icons.Phone;
+  const IconComponent = Icons[meta.icon] ?? Icons.Phone;
 
   const statusInfo = {
     verified: { label: "已驗證可轉真人", dot: "bg-emerald-500", text: "text-emerald-700" },
@@ -63,9 +62,9 @@ function RouteDetail({ route }: { route: Route }) {
         )}
       </div>
 
-      {route.actionUrl && (
+      {route.actionUrl && safeActionUrl(route.actionUrl) && (
         <a
-          href={route.actionUrl}
+          href={safeActionUrl(route.actionUrl)}
           target={route.actionUrl.startsWith("http") ? "_blank" : undefined}
           rel={route.actionUrl.startsWith("http") ? "noopener noreferrer" : undefined}
           className="flex w-full items-center justify-center rounded-xl bg-teal-600 px-5 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-teal-700 active:scale-[0.98]"
@@ -81,7 +80,7 @@ export function RoutePage({ companyId, routeId, navigate }: RoutePageProps) {
   const company = getCompanyById(companyId);
   const route = getRouteById(routeId);
 
-  if (!company || !route) {
+  if (!company || !route || route.companyId !== companyId) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-6">
         <BackButton onClick={() => navigate(`/company/${companyId}`)} />

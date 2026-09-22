@@ -1,5 +1,4 @@
-import * as Icons from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { icons as Icons } from "@/lib/icons";
 
 interface IndustryCardProps {
   name: string;
@@ -8,7 +7,7 @@ interface IndustryCardProps {
 }
 
 export function IndustryCard({ name, icon, onClick }: IndustryCardProps) {
-  const IconComponent = (Icons as unknown as Record<string, LucideIcon>)[icon] ?? Icons.Building2;
+  const IconComponent = Icons[icon] ?? Icons.Building2;
 
   return (
     <button

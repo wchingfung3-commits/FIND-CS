@@ -1,7 +1,7 @@
 import type { ChannelType, Route, Issue, Company } from "@/types";
-import { routes as allRoutes } from "@/data/routes";
-import { issues as allIssues } from "@/data/issues";
-import { companies as allCompanies } from "@/data/companies";
+import { routes as allRoutes } from "@/lib/catalog";
+import { issues as allIssues } from "@/lib/catalog";
+import { companies as allCompanies } from "@/lib/catalog";
 
 export interface ChannelMeta {
   type: ChannelType;

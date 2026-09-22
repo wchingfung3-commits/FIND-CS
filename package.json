@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run validate:data && vite build",
+    "build": "npm run typecheck && npm run lint && npm run test:data && npm run validate:data && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test:admin": "node scripts/admin-smoke.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test:data": "vite build --ssr scripts/test-data.ts --outDir .test-build --emptyOutDir && node .test-build/test-data.js",
+    "test:db": "node scripts/test-db.mjs",
     "validate:data": "vite build --ssr scripts/validate-data.ts --outDir .validation-build --emptyOutDir && node .validation-build/validate-data.js"
   },
   "dependencies": {
@@ -18,6 +21,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^9.9.1",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",

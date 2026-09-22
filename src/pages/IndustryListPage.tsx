@@ -2,7 +2,7 @@ import { BackButton } from "@/components/BackButton";
 import { CompanyCard } from "@/components/CompanyCard";
 import { Disclaimer } from "@/components/Disclaimer";
 import { getCompaniesByIndustry } from "@/lib/data";
-import { industries } from "@/data/industries";
+import { industries } from "@/lib/catalog";
 
 interface IndustryListPageProps {
   industryId: string;

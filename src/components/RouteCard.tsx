@@ -1,5 +1,4 @@
-import * as Icons from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { icons as Icons } from "@/lib/icons";
 import type { Route } from "@/types";
 import { channelMeta } from "@/lib/data";
 
@@ -10,7 +9,7 @@ interface RouteCardProps {
 
 export function RouteCard({ route, onClick }: RouteCardProps) {
   const meta = channelMeta[route.channelType];
-  const IconComponent = (Icons as unknown as Record<string, LucideIcon>)[meta.icon] ?? Icons.Phone;
+  const IconComponent = Icons[meta.icon] ?? Icons.Phone;
 
   const statusBadge = {
     verified: { label: "已驗證可轉真人", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },

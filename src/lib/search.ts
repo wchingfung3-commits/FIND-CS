@@ -1,5 +1,5 @@
 import type { Company } from "@/types";
-import { companies } from "@/data/companies";
+import { companies } from "@/lib/catalog";
 
 function normalize(str: string): string {
   return str.toLowerCase().trim();

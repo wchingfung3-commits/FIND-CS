@@ -1,5 +1,4 @@
-import * as Icons from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { icons as Icons } from "@/lib/icons";
 import type { Issue } from "@/types";
 
 interface IssueCardProps {
@@ -20,7 +19,7 @@ const issueIcons: Record<string, string> = {
 
 export function IssueCard({ issue, onClick }: IssueCardProps) {
   const iconName = issueIcons[issue.id] ?? "CircleHelp";
-  const IconComponent = (Icons as unknown as Record<string, LucideIcon>)[iconName] ?? Icons.CircleHelp;
+  const IconComponent = Icons[iconName] ?? Icons.CircleHelp;
 
   return (
     <button

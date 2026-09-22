@@ -1,8 +1,8 @@
 import { SearchBar } from "@/components/SearchBar";
 import { IndustryCard } from "@/components/IndustryCard";
 import { Disclaimer } from "@/components/Disclaimer";
-import { industries } from "@/data/industries";
-import { companies } from "@/data/companies";
+import { industries } from "@/lib/catalog";
+import { companies } from "@/lib/catalog";
 
 interface HomePageProps {
   navigate: (path: string) => void;
