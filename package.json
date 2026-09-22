@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run validate:data && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "validate:data": "vite build --ssr scripts/validate-data.ts --outDir .validation-build --emptyOutDir && node .validation-build/validate-data.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
