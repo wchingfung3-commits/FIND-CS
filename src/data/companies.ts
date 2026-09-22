@@ -16,7 +16,7 @@ export const companies: Company[] = [
     industry: "banking",
     description: "恒生銀行有限公司",
     officialUrl: "https://www.hangseng.com",
-    supportModel: "router",
+    supportModel: "simple",
   },
   {
     id: "boc",
@@ -24,7 +24,7 @@ export const companies: Company[] = [
     industry: "banking",
     description: "中國銀行（香港）",
     officialUrl: "https://www.bochk.com",
-    supportModel: "router",
+    supportModel: "simple",
   },
   {
     id: "scb",
