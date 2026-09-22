@@ -139,6 +139,17 @@ begin
      or has_table_privilege('authenticated', 'public.verifications', 'DELETE') then
     raise exception 'authenticated unexpectedly can mutate verification evidence';
   end if;
+
+  if has_function_privilege('anon', 'public.write_audit_log()', 'EXECUTE')
+     or has_function_privilege('authenticated', 'public.write_audit_log()', 'EXECUTE')
+     or has_function_privilege('anon', 'public.is_admin()', 'EXECUTE') then
+    raise exception 'internal functions unexpectedly callable by clients';
+  end if;
+
+  if has_table_privilege('authenticated', 'public.routes', 'TRUNCATE')
+     or has_sequence_privilege('anon', 'public.audit_logs_id_seq', 'USAGE') then
+    raise exception 'unexpected destructive table or audit sequence privileges';
+  end if;
 end;
 $$;
 

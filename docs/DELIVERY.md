@@ -27,6 +27,26 @@ execution require a separate source/API contract; they are not simulated.
 
 ## Required human setup / integration gate
 
+### Hosted checkpoint (2026-09-22)
+
+- Created `find-cs-preview`, ref `nbvvzdinsmmqhwoasrla`, Singapore,
+  after explicit US$0/month approval. Production unchanged.
+- Applied initial schema and explicit-grant hardening migration. All eight tables
+  have RLS. Hosted rollback SQL suite and local PGlite suite passed.
+- Hosted default ACLs exposed a gap in the original local harness. The harness now
+  reproduces permissive role defaults and runs every migration in order.
+- No mock catalog/evidence imported. SQL fixtures roll back. No admin provisioned.
+- Remaining security advisor warnings describe intentional public catalog RPC and
+  authenticated membership-check RPC; both have fixed search paths and narrow
+  return values. Membership table intentionally has no client policy.
+  See https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable
+  and https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable
+  and https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy .
+- Vercel connection returned an empty team list; Preview env setup is blocked on
+  access to the existing find-cs team/project. No environment values changed.
+- Real Auth/browser end-to-end verification remains blocked; browser smoke tests
+  have not run successfully (missing Chromium), not a passing acceptance result.
+
 1. Install and authorize the Supabase and Vercel connections for this project.
 2. Select/create an isolated FIND CS development Supabase project; do not point this
    initial migration at a populated or production database.
@@ -45,7 +65,7 @@ The existing 56 contact routes are mock data, not a verified contact database.
 
 | Risk | Control/status | Gate |
 | --- | --- | --- |
-| Real Supabase integration not exercised | Local Postgres/RLS and mocked browser tests supplement but do not replace staging | Block live release until actual staging tests pass |
+| Full integration not exercised | Hosted SQL/RLS tests passed; real Auth/browser workflow still pending | Block live release until end-to-end staging tests pass |
 | Demo contact content inaccurate | Persistent demo banner; no automatic import or publishing | Actual sources/tests required before public live catalog |
 | External API/provider scope unspecified | No paid or unattended calls; task queue is manual | Define provider contract and authorize access before execution |
 | No scheduled maintenance worker | Due dates/overdue display support manual checks | Add scheduler only after required cadence/limits established |

@@ -1,11 +1,11 @@
 # Database setup and security
 
-The initial schema lives at `supabase/migrations/20260922000000_initial_schema.sql`. It is designed for a Supabase project but does not create or modify any external project by itself.
+Apply all files in `supabase/migrations/` in order, including the explicit-grant hardening migration. The initial schema alone is not sufficient on projects with permissive default grants. Both migrations are applied to the isolated `find-cs-preview` project (`nbvvzdinsmmqhwoasrla`).
 
 ## Bootstrap
 
 1. Create or select the intended Supabase project yourself. Do not enable a public admin-registration flow.
-2. In the Supabase SQL editor, run the complete initial migration as the project database owner. Alternatively, apply it with the Supabase CLI from a trusted operator machine.
+2. Apply all migrations in order as the project database owner, preferably with the Supabase CLI from a trusted operator machine. Do not reapply them to the configured preview project.
 3. Provision the first admin through Supabase Dashboard authentication (for example, invite the operator). Copy that authenticated user's UUID from Authentication > Users.
 4. In the SQL editor, add the UUID. This operation is intentionally unavailable to browser clients:
 
@@ -33,7 +33,7 @@ Do not import the TypeScript mock verification evidence as real verification rec
 
 ## Authorization model
 
-- Anonymous users have no base-table privileges. They can execute only the safe public catalog RPC (and `is_admin()`, which returns false for them).
+- Anonymous users have no base-table privileges. They can execute only the safe public catalog RPC; `is_admin()` is restricted to authenticated callers.
 - Authenticated admins are recognized by `admin_members` through the fixed-search-path, security-definer `is_admin()` function. RLS permits admins to manage catalog records, verifications, and maintenance tasks.
 - Authenticated non-admins have no visible base rows and cannot write them.
 - `admin_members` has no client policy or client grant. Membership changes require an owner/service-side administrative context.
