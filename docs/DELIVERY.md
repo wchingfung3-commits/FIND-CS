@@ -120,3 +120,10 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
 - Every standard build now also runs pagination regression and isolated database migration/RLS tests. These use no hosted credentials and create no hosted records.
 - Pinned the React test renderer to 18.3.1 and excluded generated pagination bundles from version control.
 - Real authenticated browser acceptance remains pending; local passing tests do not replace that gate.
+
+## Authentication resilience (2026-09-29)
+
+- Session restoration remains in a loading state until resolved. New auth events invalidate old session snapshots and permission responses, preventing stale results after logout/account switching.
+- Auth RPC checks leave the synchronous auth callback before running. Errors fail closed; explicit retry restores service without requiring logout. Login exceptions release the busy button.
+- `test:auth` is part of every build and covers stale snapshots, logout, account changes, denied permissions, transport/session failures, retry and listener cleanup using injected responses.
+- Full build (typecheck/lint/data/auth/pagination/database/Vite) passed locally. These simulated auth tests are not real hosted login or browser write acceptance.

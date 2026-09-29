@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
+import { useAdminAuth } from "./useAdminAuth";
 import { db, isSupabaseConfigured, supabaseConfigurationError } from "./client";
 import { PAGE_SIZE, useRows } from "./useRows";
 import type { Row } from "./useRows";
@@ -43,34 +43,13 @@ const hongKongDateTime = (value: unknown) => value ? new Intl.DateTimeFormat("zh
 const NULLABLE_TEXT_FIELDS = new Set(["description", "official_url", "issue_id", "opening_hours", "action_url", "action_label"]);
 
 export function AdminPage() {
-  const [session, setSession] = useState<Session | null>(null);
-  const [checking, setChecking] = useState(isSupabaseConfigured);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [authError, setAuthError] = useState("");
-
-  useEffect(() => {
-    if (!db) return;
-    let active = true;
-    void (async () => { try { const { data } = await db.auth.getSession(); if (active) setSession(data.session); } catch { if (active) { setAuthError("無法連接認證服務，請稍後再試。"); setChecking(false); } } })();
-    const { data: listener } = db.auth.onAuthStateChange((_event, next) => setSession(next));
-    return () => { active = false; listener.subscription.unsubscribe(); };
-  }, []);
-
-  useEffect(() => {
-    if (!db || !session) { setIsAdmin(false); setChecking(false); return; }
-    let active = true; setChecking(true);
-    void (async () => { try {
-      const { data, error } = await db.rpc("is_admin"); if (!active) return;
-      setIsAdmin(!error && data === true); setAuthError(error ? `無法驗證管理員權限：${error.message}` : data === true ? "" : "此帳戶沒有管理員權限。"); setChecking(false);
-    } catch { if (active) { setIsAdmin(false); setAuthError("無法連接權限服務，請稍後再試。"); setChecking(false); } } })();
-    return () => { active = false; };
-  }, [session]);
-
+  const auth = useAdminAuth(db);
+  const [loginError, setLoginError] = useState("");
   if (!isSupabaseConfigured) return <SetupNotice reason={supabaseConfigurationError} />;
-  if (!session) return <SignIn error={authError} setError={setAuthError} />;
-  if (checking) return <main className="admin-shell"><div className="admin-state">正在驗證管理員權限…</div></main>;
-  if (!isAdmin) return <AccessDenied message={authError} />;
-  return <Dashboard email={session.user.email ?? "管理員"} />;
+  if (auth.checking) return <main className="admin-shell"><div className="admin-state" role="status">正在驗證管理員權限…</div></main>;
+  if (!auth.session) return <SignIn error={loginError || auth.error} setError={setLoginError} retry={auth.retry} />;
+  if (!auth.isAdmin) return <AccessDenied message={auth.error} retry={auth.retry} />;
+  return <Dashboard key={auth.session.user.id} email={auth.session.user.email ?? "管理員"} />;
 }
 
 function SetupNotice({ reason }: { reason: string }) {
@@ -82,23 +61,26 @@ function SetupNotice({ reason }: { reason: string }) {
   </section></main>;
 }
 
-function SignIn({ error, setError }: { error: string; setError: (value: string) => void }) {
+function SignIn({ error, setError, retry }: { error: string; setError: (value: string) => void; retry: () => void }) {
   const [email, setEmail] = useState(""); const [password, setPassword] = useState(""); const [busy, setBusy] = useState(false);
   async function submit(event: FormEvent) {
     event.preventDefault(); if (!db) return; setBusy(true); setError("");
-    const { error: signInError } = await db.auth.signInWithPassword({ email, password });
-    if (signInError) setError(`登入失敗：${signInError.message}`); setBusy(false);
+    try {
+      const { error: signInError } = await db.auth.signInWithPassword({ email, password });
+      if (signInError) setError(`登入失敗：${signInError.message}`);
+    } catch { setError("登入連線失敗，請稍後重試。"); }
+    finally { setBusy(false); }
   }
   return <main className="admin-shell"><form className="admin-card admin-login" onSubmit={submit}>
     <span className="admin-kicker">FIND CS 管理後台</span><h1>管理員登入</h1><p className="admin-muted">只接受已建立並獲授權的帳戶。</p>
     <label>電郵<input type="email" autoComplete="username" required value={email} onChange={e => setEmail(e.target.value)} /></label>
     <label>密碼<input type="password" autoComplete="current-password" required value={password} onChange={e => setPassword(e.target.value)} /></label>
-    {error && <div className="admin-error" role="alert">{error}</div>}<button disabled={busy}>{busy ? "登入中…" : "登入"}</button>
+    {error && <div className="admin-error" role="alert">{error}</div>}<button disabled={busy}>{busy ? "登入中…" : "登入"}</button>{error && <button type="button" className="admin-secondary" disabled={busy} onClick={() => { setError(""); retry(); }}>重試連線</button>}
   </form></main>;
 }
 
-function AccessDenied({ message }: { message: string }) {
-  return <main className="admin-shell"><section className="admin-card admin-login"><h1>無法進入管理後台</h1><div className="admin-error" role="alert">{message || "此帳戶沒有管理員權限。"}</div><button onClick={() => db?.auth.signOut()}>登出</button></section></main>;
+function AccessDenied({ message, retry }: { message: string; retry: () => void }) {
+  return <main className="admin-shell"><section className="admin-card admin-login"><h1>無法進入管理後台</h1><div className="admin-error" role="alert">{message || "此帳戶沒有管理員權限。"}</div><button onClick={retry}>重新驗證權限</button><button onClick={() => db?.auth.signOut()}>登出</button></section></main>;
 }
 
 function Dashboard({ email }: { email: string }) {
