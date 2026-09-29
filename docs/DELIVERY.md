@@ -127,3 +127,10 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
 - Auth RPC checks leave the synchronous auth callback before running. Errors fail closed; explicit retry restores service without requiring logout. Login exceptions release the busy button.
 - `test:auth` is part of every build and covers stale snapshots, logout, account changes, denied permissions, transport/session failures, retry and listener cleanup using injected responses.
 - Full build (typecheck/lint/data/auth/pagination/database/Vite) passed locally. These simulated auth tests are not real hosted login or browser write acceptance.
+
+## Admin navigation and access review (2026-09-29)
+
+- User screenshot confirms the authenticated dashboard is visible; task write/refresh acceptance is still pending.
+- Fixed tab CSS specificity: generic button styling no longer overrides the transparent tab background, keeping the selected green label readable.
+- Removed the admin link from the public footer. Administrators use the bookmarked `/#/admin` URL. Hiding navigation is not an authorization control.
+- Read-only hosted review confirmed RLS on all eight public tables, admin-only policies, no anonymous task INSERT/route UPDATE privileges, and no authenticated INSERT privilege on admin_members. Local permission-denial tests remain in every build.
