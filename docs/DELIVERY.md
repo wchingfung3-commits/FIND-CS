@@ -47,6 +47,37 @@ execution require a separate source/API contract; they are not simulated.
 - Real Auth/browser end-to-end verification remains blocked; browser smoke tests
   have not run successfully (missing Chromium), not a passing acceptance result.
 
+### Current checkpoint (2026-09-28; supersedes the integration blockers above)
+
+- Vercel access now works for team `team_Qb6Y2sKOpG9bby5FRMZwrFKj`, project
+  `prj_COXhdhQblIrHcIM2xZPhihWeryVR`. The user configured Preview environment
+  values and redeployed commit `012271e`; deployment reached READY.
+- The user-selected Supabase account is an admin; database membership/RPC checks
+  passed. No passwords or privileged keys were collected.
+- Cloud browser reached the FIND CS admin login screen through the connected
+  Vercel plugin's temporary preview access. Public Supabase configuration passes
+  frontend initialization and demo mode is visible. Actual app account login and
+  UI-to-API writes have NOT passed acceptance. Keep `VITE_CATALOG_MODE=demo` for now.
+- Admin lists now paginate 50 records at a time with exact counts, deterministic
+  ordering, stale-response suppression, retry, and recovery after last-page deletion.
+  The overdue notice reports the current page only. Offset pagination is a live
+  view, not a snapshot; concurrent inserts can move records between pages.
+- Added observation timestamps in Hong Kong time. Database rejects future
+  observations, date/time disagreement, and observations predating revised route
+  content (including changes on the same day). Publication toggles preserve the
+  server-owned revision start. Initial revision date-only imports remain supported.
+- `verification_observation_time` migration is applied to preview. Local and hosted
+  rollback SQL suites passed; no test rows remain. The database had zero routes,
+  tasks, and verification records before this migration.
+- Existing observations in other environments need review before this migration:
+  it does not manufacture missing timestamps or retroactively validate old evidence.
+- Security advisor still flags intentional SECURITY DEFINER RPCs and the sealed
+  membership table, as documented above. It also reports leaked-password checking
+  disabled. Supabase documents that feature as Pro-only; no paid plan was enabled.
+  This is not a claim that credentials are safe: use a unique strong admin password,
+  retain Vercel deployment authentication, and assess MFA before Production.
+  Reference: https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
+
 1. Install and authorize the Supabase and Vercel connections for this project.
 2. Select/create an isolated FIND CS development Supabase project; do not point this
    initial migration at a populated or production database.
@@ -65,7 +96,7 @@ The existing 56 contact routes are mock data, not a verified contact database.
 
 | Risk | Control/status | Gate |
 | --- | --- | --- |
-| Full integration not exercised | Hosted SQL/RLS tests passed; real Auth/browser workflow still pending | Block live release until end-to-end staging tests pass |
+| Full integration not exercised | Hosted SQL/RLS tests passed; cloud browser reaches admin form with valid frontend configuration, account authentication pending | Block live release until end-to-end staging tests pass |
 | Demo contact content inaccurate | Persistent demo banner; no automatic import or publishing | Actual sources/tests required before public live catalog |
 | External API/provider scope unspecified | No paid or unattended calls; task queue is manual | Define provider contract and authorize access before execution |
 | No scheduled maintenance worker | Due dates/overdue display support manual checks | Add scheduler only after required cadence/limits established |
@@ -83,3 +114,9 @@ Read this document, `docs/database.md`, package scripts, migration and tests.
 Check the current Preview HEAD before changing anything. Run `npm ci` then
 `npm run build`; run database and browser tests documented in their scripts.
 Do not expand privileges, incur charges, or deploy Production implicitly.
+
+## Build gate update (2026-09-29)
+
+- Every standard build now also runs pagination regression and isolated database migration/RLS tests. These use no hosted credentials and create no hosted records.
+- Pinned the React test renderer to 18.3.1 and excluded generated pagination bundles from version control.
+- Real authenticated browser acceptance remains pending; local passing tests do not replace that gate.

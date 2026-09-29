@@ -1,10 +1,11 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { db, isSupabaseConfigured, supabaseConfigurationError } from "./client";
+import { PAGE_SIZE, useRows } from "./useRows";
+import type { Row } from "./useRows";
 import "./admin.css";
 
 type Tab = "tasks" | "catalog" | "verification" | "audit";
-type Row = Record<string, unknown>;
 type CatalogTable = "companies" | "industries" | "issues" | "routes";
 
 const CATALOG: Record<CatalogTable, { label: string; fields: readonly string[]; sample: Row }> = {
@@ -33,6 +34,12 @@ const CATALOG: Record<CatalogTable, { label: string; fields: readonly string[]; 
 const formatDate = (value: unknown) => value ? new Date(String(value)).toLocaleString("zh-HK") : "—";
 const asText = (value: unknown) => typeof value === "string" ? value : "";
 const shortId = (value: unknown) => asText(value).slice(0, 10) || "—";
+function hongKongNow() {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Hong_Kong", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date());
+  const part = (type: string) => parts.find(item => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}:${part("second")}`;
+}
+const hongKongDateTime = (value: unknown) => value ? new Intl.DateTimeFormat("zh-HK", { timeZone: "Asia/Hong_Kong", dateStyle: "short", timeStyle: "short" }).format(new Date(String(value))) : "";
 const NULLABLE_TEXT_FIELDS = new Set(["description", "official_url", "issue_id", "opening_hours", "action_url", "action_label"]);
 
 export function AdminPage() {
@@ -103,17 +110,16 @@ function Dashboard({ email }: { email: string }) {
   </main>;
 }
 
-function useRows(table: string, orderBy = "updated_at") {
-  const [rows, setRows] = useState<Row[]>([]); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
-  const requestId = useRef(0);
-  const reload = useCallback(async () => {
-    if (!db) return; const currentRequest = ++requestId.current; setRows([]); setLoading(true); setError("");
-    const { data, error: queryError } = await db.from(table).select("*").order(orderBy, { ascending: false }).limit(250);
-    if (currentRequest !== requestId.current) return;
-    if (queryError) setError(queryError.message); else setRows((data ?? []) as Row[]); setLoading(false);
-  }, [table, orderBy]);
-  useEffect(() => { void reload(); }, [reload]);
-  return { rows, loading, error, setError, reload };
+function Pagination({ state }: { state: ReturnType<typeof useRows> }) {
+  if (state.loading || state.error) return null;
+  const pages = Math.max(1, Math.ceil(state.count / PAGE_SIZE));
+  const start = state.count ? state.page * PAGE_SIZE + 1 : 0;
+  const end = Math.min((state.page + 1) * PAGE_SIZE, state.count);
+  return <nav className="admin-pagination" aria-label="記錄分頁">
+    <span>第 {state.page + 1} / {pages} 頁 · 顯示 {start}–{end} / 共 {state.count} 項</span>
+    <div><button type="button" className="admin-secondary" disabled={state.page === 0} onClick={() => state.setPage(state.page - 1)}>上一頁</button>
+    <button type="button" className="admin-secondary" disabled={state.page + 1 >= pages} onClick={() => state.setPage(state.page + 1)}>下一頁</button></div>
+  </nav>;
 }
 
 function PanelState({ loading, error }: { loading: boolean; error: string }) {
@@ -136,9 +142,9 @@ function TasksPanel() {
     <label>標題<input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label><label>路線 ID（選填）<input value={form.route_id} onChange={e => setForm({ ...form, route_id: e.target.value })} /></label>
     <div className="admin-two"><label>狀態<select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}><option value="todo">待辦</option><option value="in_progress">進行中</option><option value="blocked">受阻</option><option value="done">完成</option></select></label><label>優先度<select value={form.priority} onChange={e => setForm({ ...form, priority: e.target.value })}><option value="low">低</option><option value="normal">一般</option><option value="high">高</option></select></label></div>
     <label>期限（選填）<input type="datetime-local" value={form.due_at} onChange={e => setForm({ ...form, due_at: e.target.value })} /></label><label>備註<textarea rows={4} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></label><button disabled={busy}>{busy ? "儲存中…" : "新增任務"}</button></form>
-    <div><div className="admin-section-title"><h2>任務清單</h2><button className="admin-secondary" onClick={() => state.reload()}>重新載入</button></div>{!state.loading && overdueCount > 0 && <div className="admin-warning" role="status">有 {overdueCount} 項未完成任務已逾期。</div>}{state.rows.length === 250 && <LimitNotice />}<PanelState loading={state.loading} error={state.error} />{!state.loading && !state.error && state.rows.length === 0 && <div className="admin-state">未有任務。</div>}
+    <div><div className="admin-section-title"><h2>任務清單</h2><button className="admin-secondary" onClick={() => state.reload()}>重新載入</button></div>{!state.loading && !state.error && overdueCount > 0 && <div className="admin-warning" role="status">此頁有 {overdueCount} 項未完成任務已逾期。</div>}<PanelState loading={state.loading} error={state.error} />{state.error && <button className="admin-secondary" onClick={() => state.reload()}>重試載入</button>}{!state.loading && !state.error && state.rows.length === 0 && <div className="admin-state">未有任務。</div>}
       <div className="admin-list">{state.rows.map(row => <article className="admin-card admin-item" key={String(row.id)}><div className="admin-item-head"><div><span className={`admin-badge priority-${asText(row.priority)}`}>{asText(row.priority)}</span><h3>{asText(row.title)}</h3></div><button className="admin-danger-text" onClick={() => remove(row)}>刪除</button></div><p>{asText(row.notes) || "沒有備註"}</p><div className="admin-meta">路線：{shortId(row.route_id)} · 期限：{formatDate(row.due_at)}</div><label className="admin-inline">狀態<select value={asText(row.status)} onChange={e => updateStatus(row, e.target.value)}><option value="todo">待辦</option><option value="in_progress">進行中</option><option value="blocked">受阻</option><option value="done">完成</option></select></label></article>)}</div>
-    </div></div></section>;
+    <Pagination state={state} /></div></div></section>;
 }
 
 function CatalogPanel() {
@@ -158,22 +164,23 @@ function CatalogPanel() {
     if (error) state.setError(error.message); else if (selectedId && (!data || data.length === 0)) state.setError("記錄已被其他管理員更新或刪除，請重新載入後再試。"); else { fresh(); await state.reload(); } setBusy(false);
   };
   const remove = async () => { if (!db || !selectedId || !confirm(`確定刪除 ${config.label}「${selectedId}」？相關資料可能令刪除失敗。`)) return; const requestTable = table; setBusy(true); let query = db.from(requestTable).delete().eq("id", selectedId); if (selectedVersion) query = query.eq("updated_at", selectedVersion); const { data, error } = await query.select("id"); if (error) state.setError(error.message); else if (!data || data.length === 0) state.setError("記錄已被其他管理員更新或刪除，請重新載入後再試。"); else { fresh(); await state.reload(); } setBusy(false); };
-  return <section className="admin-panel"><div className="admin-toolbar"><label>資料類型<select disabled={busy || state.loading} value={table} onChange={e => setTable(e.target.value as CatalogTable)}>{Object.entries(CATALOG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}</select></label><button className="admin-secondary" disabled={busy || state.loading} onClick={fresh}>新增{config.label}</button></div>{state.rows.length === 250 && <LimitNotice />}<PanelState loading={state.loading} error={state.error} />
+  return <section className="admin-panel"><div className="admin-toolbar"><label>資料類型<select disabled={busy} value={table} onChange={e => { setTable(e.target.value as CatalogTable); state.reload(); }}>{Object.entries(CATALOG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}</select></label><button className="admin-secondary" disabled={busy || state.loading} onClick={fresh}>新增{config.label}</button></div><PanelState loading={state.loading} error={state.error} />{state.error && <button className="admin-secondary" onClick={() => state.reload()}>重試載入</button>}
     <div className="admin-grid catalog-grid"><div className="admin-card admin-table-wrap"><table><thead><tr><th>ID</th><th>名稱／類型</th><th></th></tr></thead><tbody>{state.rows.map(row => <tr key={String(row.id)} className={selectedId === String(row.id) ? "selected" : ""}><td>{shortId(row.id)}</td><td>{asText(row.name) || asText(row.channel_type) || "—"}</td><td><button className="admin-link" disabled={busy || state.loading} onClick={() => select(row)}>編輯</button></td></tr>)}</tbody></table>{!state.loading && state.rows.length === 0 && <div className="admin-state">未有資料。</div>}</div>
-    <form className="admin-card admin-form" onSubmit={save}><h2>{selectedId ? `編輯 ${selectedId}` : `新增${config.label}`}</h2><p className="admin-muted">只接受：{config.fields.join("、")}</p><label>JSON 內容<textarea className="admin-code" rows={20} value={json} onChange={e => setJson(e.target.value)} spellCheck={false} /></label><div className="admin-actions"><button disabled={busy}>{busy ? "儲存中…" : "儲存"}</button>{selectedId && <button type="button" className="admin-danger" onClick={remove} disabled={busy}>刪除</button>}</div></form></div></section>;
+    <form className="admin-card admin-form" onSubmit={save}><h2>{selectedId ? `編輯 ${selectedId}` : `新增${config.label}`}</h2><p className="admin-muted">只接受：{config.fields.join("、")}</p><label>JSON 內容<textarea className="admin-code" rows={20} value={json} onChange={e => setJson(e.target.value)} spellCheck={false} /></label><div className="admin-actions"><button disabled={busy}>{busy ? "儲存中…" : "儲存"}</button>{selectedId && <button type="button" className="admin-danger" onClick={remove} disabled={busy}>刪除</button>}</div></form></div><Pagination state={state} /></section>;
 }
 
 function VerificationPanel() {
-  const state = useRows("verifications", "test_date"); const [busy, setBusy] = useState(false); const today = new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ route_id: "", test_date: today, test_period: "service_hours", result: "human_reached", evidence: "" });
-  const save = async (event: FormEvent) => { event.preventDefault(); if (!db) return; if (form.result === "human_reached" && !form.evidence.trim()) { state.setError("成功聯絡真人的紀錄必須提供證據或測試備註。"); return; } setBusy(true); state.setError(""); const { error } = await db.from("verifications").insert({ ...form, evidence: form.evidence.trim() || null }); if (error) state.setError(error.message); else { setForm({ ...form, route_id: "", evidence: "" }); await state.reload(); } setBusy(false); };
-  return <section className="admin-panel"><div className="admin-grid"><form className="admin-card admin-form" onSubmit={save}><h2>記錄路線驗證</h2><p className="admin-muted">驗證紀錄只可新增。需要更正時請另建紀錄；如須移除錯誤資料，請交由資料庫擁有人處理。</p><label>路線 ID<input required value={form.route_id} onChange={e => setForm({ ...form, route_id: e.target.value })} /></label><label>測試日期<input type="date" max={today} required value={form.test_date} onChange={e => setForm({ ...form, test_date: e.target.value })} /></label><label>測試時段<select value={form.test_period} onChange={e => setForm({ ...form, test_period: e.target.value })}><option value="service_hours">服務時間</option><option value="after_hours">非服務時間</option></select></label><label>結果<select value={form.result} onChange={e => setForm({ ...form, result: e.target.value })}><option value="human_reached">成功聯絡真人</option><option value="human_not_available">未能聯絡真人</option><option value="verification_boundary">達驗證邊界</option><option value="failed">失敗</option></select></label><label>證據／備註{form.result === "human_reached" ? "（必填）" : ""}<textarea required={form.result === "human_reached"} rows={5} value={form.evidence} onChange={e => setForm({ ...form, evidence: e.target.value })} /></label><button disabled={busy}>{busy ? "儲存中…" : "新增紀錄"}</button></form>
-    <div><h2>最近驗證</h2>{state.rows.length === 250 && <LimitNotice />}<PanelState loading={state.loading} error={state.error} /><div className="admin-list">{state.rows.map(row => <article className="admin-card admin-item" key={String(row.id)}><div className="admin-item-head"><div><span className="admin-badge">{asText(row.result)}</span><h3>{asText(row.route_id)}</h3></div></div><p>{asText(row.evidence) || "沒有備註"}</p><div className="admin-meta">{asText(row.test_date)} · {asText(row.test_period)}</div></article>)}</div>{!state.loading && !state.error && state.rows.length === 0 && <div className="admin-state">未有驗證紀錄。</div>}</div></div></section>;
+  const state = useRows("verifications", "test_date"); const [busy, setBusy] = useState(false);
+  const [form, setForm] = useState({ route_id: "", tested_at: hongKongNow(), test_period: "service_hours", result: "human_reached", evidence: "" });
+  const save = async (event: FormEvent) => { event.preventDefault(); if (!db) return; if (form.result === "human_reached" && !form.evidence.trim()) { state.setError("成功聯絡真人的紀錄必須提供證據或測試備註。"); return; }
+    if (form.tested_at > hongKongNow()) { state.setError("測試時間不可晚於目前香港時間。"); return; }
+    const timestamp = `${form.tested_at}${form.tested_at.length === 16 ? ":00" : ""}+08:00`;
+    setBusy(true); state.setError(""); const { error } = await db.from("verifications").insert({ ...form, tested_at: new Date(timestamp).toISOString(), test_date: form.tested_at.slice(0, 10), evidence: form.evidence.trim() || null }); if (error) state.setError(error.message); else { setForm({ ...form, tested_at: hongKongNow(), route_id: "", evidence: "" }); state.reload(); } setBusy(false); };
+  return <section className="admin-panel"><div className="admin-grid"><form className="admin-card admin-form" onSubmit={save}><h2>記錄路線驗證</h2><p className="admin-muted">驗證紀錄只可新增。需要更正時請另建紀錄；如須移除錯誤資料，請交由資料庫擁有人處理。</p><label>路線 ID<input required value={form.route_id} onChange={e => setForm({ ...form, route_id: e.target.value })} /></label><label>測試時間（香港時間）<input type="datetime-local" step="1" max={hongKongNow()} required value={form.tested_at} onChange={e => setForm({ ...form, tested_at: e.target.value })} /></label><label>測試時段<select value={form.test_period} onChange={e => setForm({ ...form, test_period: e.target.value })}><option value="service_hours">服務時間</option><option value="after_hours">非服務時間</option></select></label><label>結果<select value={form.result} onChange={e => setForm({ ...form, result: e.target.value })}><option value="human_reached">成功聯絡真人</option><option value="human_not_available">未能聯絡真人</option><option value="verification_boundary">達驗證邊界</option><option value="failed">失敗</option></select></label><label>證據／備註{form.result === "human_reached" ? "（必填）" : ""}<textarea required={form.result === "human_reached"} rows={5} value={form.evidence} onChange={e => setForm({ ...form, evidence: e.target.value })} /></label><button disabled={busy}>{busy ? "儲存中…" : "新增紀錄"}</button></form>
+    <div><h2>最近驗證</h2><PanelState loading={state.loading} error={state.error} />{state.error && <button className="admin-secondary" onClick={() => state.reload()}>重試載入</button>}<div className="admin-list">{state.rows.map(row => <article className="admin-card admin-item" key={String(row.id)}><div className="admin-item-head"><div><span className="admin-badge">{asText(row.result)}</span><h3>{asText(row.route_id)}</h3></div></div><p>{asText(row.evidence) || "沒有備註"}</p><div className="admin-meta">{hongKongDateTime(row.tested_at) || asText(row.test_date)} · {asText(row.test_period)}</div></article>)}</div>{!state.loading && !state.error && state.rows.length === 0 && <div className="admin-state">未有驗證紀錄。</div>}<Pagination state={state} /></div></div></section>;
 }
 
 function AuditPanel() {
   const state = useRows("audit_logs", "created_at");
-  return <section className="admin-panel"><div className="admin-section-title"><div><h2>稽核紀錄</h2><p className="admin-muted">只讀，顯示最近 250 項資料變更。</p></div><button className="admin-secondary" onClick={() => state.reload()}>重新載入</button></div>{state.rows.length === 250 && <LimitNotice />}<PanelState loading={state.loading} error={state.error} /><div className="admin-card admin-table-wrap"><table><thead><tr><th>時間</th><th>操作</th><th>資料表</th><th>記錄 ID</th><th>操作者</th></tr></thead><tbody>{state.rows.map(row => <tr key={String(row.id)}><td>{formatDate(row.created_at)}</td><td><span className="admin-badge">{asText(row.operation)}</span></td><td>{asText(row.table_name)}</td><td>{asText(row.record_id)}</td><td>{shortId(row.actor_id)}</td></tr>)}</tbody></table></div></section>;
+  return <section className="admin-panel"><div className="admin-section-title"><div><h2>稽核紀錄</h2><p className="admin-muted">只讀，依時間瀏覽資料變更。</p></div><button className="admin-secondary" onClick={() => state.reload()}>重新載入</button></div><PanelState loading={state.loading} error={state.error} />{state.error && <button className="admin-secondary" onClick={() => state.reload()}>重試載入</button>}<div className="admin-card admin-table-wrap"><table><thead><tr><th>時間</th><th>操作</th><th>資料表</th><th>記錄 ID</th><th>操作者</th></tr></thead><tbody>{state.rows.map(row => <tr key={String(row.id)}><td>{formatDate(row.created_at)}</td><td><span className="admin-badge">{asText(row.operation)}</span></td><td>{asText(row.table_name)}</td><td>{asText(row.record_id)}</td><td>{shortId(row.actor_id)}</td></tr>)}</tbody></table></div><Pagination state={state} /></section>;
 }
-
-function LimitNotice() { return <div className="admin-warning" role="status">只顯示最近 250 項記錄；如需較舊資料，請使用資料庫管理工具查閱。</div>; }

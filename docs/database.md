@@ -21,6 +21,16 @@ Do not import the TypeScript mock verification evidence as real verification rec
 
 ## Public response
 
+The `verification_observation_time` migration adds `verifications.tested_at` and
+server-owned `routes.revision_started_at`. The UI records actual test time in
+Hong Kong time and sends its UTC instant plus the matching Hong Kong `test_date`.
+The database rejects future/non-finite dates and timestamps, date/time disagreement,
+and observations before a materially revised route began. Revised routes require
+an exact timestamp, closing same-day reuse of stale evidence. Publication toggles
+do not reset the revision start; clients cannot edit it. Initial-revision imports
+may retain genuine date-only observations. Existing observations are not backfilled
+with invented times; review any populated environment before applying this migration.
+
 `get_public_catalog()` returns a JSON object with `industries`, `companies`, `issues`, and `routes` arrays. Keys inside those arrays use the camelCase names in `src/types/index.ts`.
 
 - Only published routes are returned. A company and its industry become visible only when that company has at least one published route; an issue is visible only when a published route references it.

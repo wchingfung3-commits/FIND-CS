@@ -59,8 +59,8 @@ $$;
 
 insert into public.verifications (route_id, test_date, test_period, result, evidence)
 values
-  ('published-route', '2026-09-20', 'service_hours', 'human_reached', 'private success evidence'),
-  ('published-route', '2026-09-21', 'service_hours', 'failed', 'private failure evidence');
+  ('published-route', ((clock_timestamp() at time zone 'Asia/Hong_Kong')::date - 2), 'service_hours', 'human_reached', 'private success evidence'),
+  ('published-route', ((clock_timestamp() at time zone 'Asia/Hong_Kong')::date - 1), 'service_hours', 'failed', 'private failure evidence');
 
 -- A route cannot point at an issue owned by another company.
 do $$
@@ -99,7 +99,7 @@ do $$
 begin
   begin
     insert into public.verifications (route_id, test_date, test_period, result)
-    values ('published-route', '2026-09-22', 'service_hours', 'human_reached');
+    values ('published-route', (clock_timestamp() at time zone 'Asia/Hong_Kong')::date, 'service_hours', 'human_reached');
     raise exception 'expected evidence check violation';
   exception when check_violation then
     null;
@@ -216,10 +216,63 @@ begin
 end;
 $$;
 
-insert into public.verifications (route_id, test_date, test_period, result, evidence)
+-- Direct API callers cannot bypass date controls or falsify revision start.
+do $$
+declare
+  started timestamptz := (select revision_started_at from public.routes where id = 'published-route');
+  before_edit timestamptz := started - interval '1 second';
+begin
+  update public.routes set published = false, revision_started_at = '2000-01-01'
+  where id = 'published-route';
+  update public.routes set published = true where id = 'published-route';
+  if (select revision_started_at from public.routes where id = 'published-route') <> started then
+    raise exception 'publication/client timestamp changed the revision start';
+  end if;
+  begin
+    insert into public.verifications (route_id, test_date, test_period, result, evidence)
+    values ('published-route', (clock_timestamp() at time zone 'Asia/Hong_Kong')::date + 1,
+      'service_hours', 'human_reached', 'must reject future day');
+    raise exception 'expected future date rejection';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.verifications (route_id, test_date, tested_at, test_period, result, evidence)
+    values ('published-route', ((clock_timestamp() + interval '1 hour') at time zone 'Asia/Hong_Kong')::date,
+      clock_timestamp() + interval '1 hour', 'service_hours', 'human_reached', 'must reject future time');
+    raise exception 'expected future timestamp rejection';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.verifications (route_id, test_date, test_period, result, evidence)
+    values ('published-route', (clock_timestamp() at time zone 'Asia/Hong_Kong')::date,
+      'service_hours', 'human_reached', 'date-only cannot verify revised route');
+    raise exception 'expected revised route to require exact timestamp';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.verifications (route_id, test_date, tested_at, test_period, result, evidence)
+    values ('published-route', (before_edit at time zone 'Asia/Hong_Kong')::date,
+      before_edit, 'service_hours', 'human_reached', 'must reject same-day stale observation');
+    raise exception 'expected pre-revision timestamp rejection';
+  exception when check_violation then null;
+  end;
+  begin
+    insert into public.verifications (route_id, test_date, tested_at, test_period, result, evidence)
+    values ('published-route', (clock_timestamp() at time zone 'Asia/Hong_Kong')::date - 1,
+      clock_timestamp(), 'service_hours', 'human_reached', 'must reject date mismatch');
+    raise exception 'expected Hong Kong date mismatch rejection';
+  exception when check_violation then null;
+  end;
+  if public.get_public_catalog()->'routes'->0->>'verificationStatus' <> 'needs_review' then
+    raise exception 'rejected observations changed public verification status';
+  end if;
+end;
+$$;
+
+insert into public.verifications (route_id, test_date, test_period, result, evidence, tested_at)
 values (
-  'published-route', '2026-09-22', 'service_hours', 'human_reached',
-  'dated private source observation for revised route'
+  'published-route', (clock_timestamp() at time zone 'Asia/Hong_Kong')::date, 'service_hours', 'human_reached',
+  'dated private source observation for revised route', clock_timestamp()
 );
 
 do $$
@@ -227,7 +280,7 @@ declare
   route jsonb := public.get_public_catalog()->'routes'->0;
 begin
   if route->>'verificationStatus' <> 'verified'
-     or route->>'lastVerified' <> '2026-09-22' then
+     or route->>'lastVerified' <> ((clock_timestamp() at time zone 'Asia/Hong_Kong')::date)::text then
     raise exception 'current-revision success was not verified: %', route;
   end if;
 end;

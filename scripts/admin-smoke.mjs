@@ -46,7 +46,7 @@ try {
     const request = route.request(); const url = request.url();
     if (url.includes("/auth/v1/user")) return json(route, user);
     if (url.includes("/rest/v1/rpc/is_admin")) return json(route, true);
-    if (url.includes("/rest/v1/tasks") && request.method() === "GET") return json(route, []);
+    if (url.includes("/rest/v1/tasks") && request.method() === "GET") return route.fulfill({ status: 200, contentType: "application/json", headers: { "content-range": "*/0" }, body: "[]" });
     if (url.includes("/rest/v1/tasks") && request.method() === "POST") { inserted = request.postDataJSON(); if (failNextInsert) return json(route, { message: "mock write failure" }, 400); return route.fulfill({ status: 201, body: "" }); }
     return json(route, []);
   });
