@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { db } from "./client";
 import { PAGE_SIZE, useRows } from "./useRows";
-import type { AgentKind, JobPlan } from "../agents/contracts";
+import { readJobCheck, jobCheckMessage } from "../agents/contracts";
+import type { AgentKind, JobPlan, JobCheck } from "../agents/contracts";
 
 export function AgentPanel() {
   const [kind, setKind] = useState<AgentKind>("browser");
   const [routeId, setRouteId] = useState("");
   const [plan, setPlan] = useState<JobPlan | null>(null);
+  const [check, setCheck] = useState<JobCheck | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const jobs = useRows("agent_jobs", "created_at");
@@ -16,7 +18,7 @@ export function AgentPanel() {
   async function prepare(event: FormEvent) {
     event.preventDefault(); if (!db || busy) return;
     const request = ++generation.current;
-    setBusy(true); setError(""); setPlan(null);
+    setBusy(true); setError(""); setCheck(null); setPlan(null);
     try {
       const { data, error: queryError } = await db.from("agent_jobs")
         .insert({ route_id: routeId.trim(), kind }).select("plan").single();
@@ -34,7 +36,7 @@ export function AgentPanel() {
   async function cancel(id: string) {
     if (!db || busy) return;
     const request = ++generation.current;
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setCheck(null);
     try {
       const { data, error: mutationError } = await db.from("agent_jobs")
         .update({ status: "cancelled" }).eq("id", id).eq("status", "blocked_provider").select("id");
@@ -46,13 +48,26 @@ export function AgentPanel() {
       if (request === generation.current) setError(cause instanceof Error ? cause.message : "取消失敗，請重試。");
     } finally { if (request === generation.current) setBusy(false); }
   }
+  async function inspect(id: string) {
+    if (!db || busy) return;
+    const request = ++generation.current;
+    setBusy(true); setError(""); setCheck(null);
+    try {
+      const { data, error: checkError } = await db.rpc("check_agent_job", { p_job_id: id });
+      if (request !== generation.current) return;
+      if (checkError) throw new Error(checkError.message);
+      setCheck(readJobCheck(data, id));
+    } catch (cause) {
+      if (request === generation.current) setError(cause instanceof Error ? cause.message : "檢查失敗，未允許執行。");
+    } finally { if (request === generation.current) setBusy(false); }
+  }
   return <section className="admin-panel">
     <div className="admin-warning" role="status">Browser Agent 及 Voice Agent 尚未連接。此頁儲存待接駁任務，不會開啟客服對話、撥打電話或建立驗證紀錄。</div>
     <div className="admin-grid">
       <form className="admin-card admin-form" onSubmit={prepare}>
         <h2>建立待接駁任務</h2>
-        <label>驗證方式<select disabled={busy} value={kind} onChange={event => { setKind(event.target.value as AgentKind); setPlan(null); setError(""); }}><option value="browser">Browser：Live Chat／WhatsApp</option><option value="voice">Voice：電話／IVR</option></select></label>
-        <label>路線 ID<input required disabled={busy} value={routeId} onChange={event => { setRouteId(event.target.value); setPlan(null); setError(""); }} /></label>
+        <label>驗證方式<select disabled={busy} value={kind} onChange={event => { setKind(event.target.value as AgentKind); setPlan(null); setCheck(null); setError(""); }}><option value="browser">Browser：Live Chat／WhatsApp</option><option value="voice">Voice：電話／IVR</option></select></label>
+        <label>路線 ID<input required disabled={busy} value={routeId} onChange={event => { setRouteId(event.target.value); setPlan(null); setCheck(null); setError(""); }} /></label>
         <p className="admin-muted">從「內容目錄 → 聯絡路線」取得 ID。規格會鎖定目前路線版本；路線修改後須重新準備。</p>
         <button disabled={busy}>{busy ? "儲存中…" : "儲存待接駁任務"}</button>
         {error && <div className="admin-error" role="alert">{error}</div>}
@@ -61,19 +76,25 @@ export function AgentPanel() {
         <p>Browser：需選定執行服務、核准官方網站範圍及證據保存方式。</p>
         <p>Voice：需開通電話服務、設定香港通話支援、費用上限及停止條件。</p>
         <p>到達真人、帳戶驗證、付款或 CAPTCHA 時停止。收到 Agent 結果後仍需檢查證據及人工審核，才可發布。</p>
+        {check && <div role="status"><h3>伺服器檢查結果</h3>
+          <p>{jobCheckMessage[check.state]}</p>
+          <p className="admin-muted">任務：{check.jobId} · 已儲存版本：{check.routeRevision ?? "—"} · 目前版本：{check.currentRouteRevision ?? "—"}</p>
+          <p className="admin-muted">{new Date(check.checkedAt).toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}（香港時間）。此結果只反映檢查當刻，不代表已授權或排程執行。</p>
+        </div>}
         {plan ? <><h3>已儲存規格（未執行）</h3><pre className="admin-job-plan">{JSON.stringify(plan, null, 2)}</pre></> : <p className="admin-muted">選擇下方任務可查看已儲存規格。</p>}
       </div>
     </div>
     <div className="admin-card admin-form">
       <h2>待接駁任務紀錄</h2>
       <p className="admin-muted">這是儲存的準備紀錄，尚未排程執行。路線修改後，舊規格不能用於執行，須取消並重新建立。</p>
-      <button type="button" disabled={busy || jobs.loading} onClick={jobs.reload}>重新載入</button>
+      <button type="button" disabled={busy || jobs.loading} onClick={() => { setCheck(null); jobs.reload(); }}>重新載入</button>
       {jobs.error && <div className="admin-error" role="alert">{jobs.error}</div>}
       {jobs.loading ? <p role="status">載入中…</p> : !jobs.error && jobs.rows.length === 0 ? <p>未有任務紀錄。</p> : jobs.rows.map(job => <div className="admin-card admin-form" key={String(job.id)}>
         <strong>{job.kind === "voice" ? "Voice" : "Browser"} · {String(job.route_id)} · v{String(job.route_revision)}</strong>
         <span>{job.status === "cancelled" ? "已取消" : "待接駁服務（未執行）"}</span>
         <time dateTime={String(job.created_at)}>{new Date(String(job.created_at)).toLocaleString("zh-HK", { timeZone: "Asia/Hong_Kong" })}（香港時間）</time>
-        <button type="button" disabled={busy} onClick={() => setPlan(job.plan as JobPlan)}>查看規格</button>
+        <button type="button" disabled={busy} onClick={() => { setCheck(null); setPlan(job.plan as JobPlan); }}>查看規格</button>
+        <button type="button" disabled={busy} onClick={() => void inspect(String(job.id))}>檢查任務</button>
         {job.status === "blocked_provider" && <button type="button" disabled={busy} onClick={() => void cancel(String(job.id))}>取消任務</button>}
       </div>)}
       <div>

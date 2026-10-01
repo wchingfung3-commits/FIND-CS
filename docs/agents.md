@@ -53,3 +53,23 @@ checks and do not prove any external provider integration works.
 Queue tests: `npm run test:db` runs every SQL suite against all migrations. Hosted
 rollback tests exercise admin creation/cancellation/audit, duplicate blocking,
 immutable snapshots, invalid targets and anonymous/non-admin denial. No fixtures persist.
+
+## Preflight diagnostic (2026-10-02, Hong Kong)
+
+`check_agent_job(p_job_id)` is a read-only, SECURITY INVOKER RPC. Only authenticated
+admins can call it successfully. It joins the job and route in one SELECT and returns
+`blocked_provider`, `stale_route`, `cancelled` or `unavailable`, with stored/current
+revision and server check time. `runnable` is always false. The UI rejects unknown
+states, mismatched job IDs and responses claiming execution is allowed.
+
+This is a diagnostic snapshot, not a lease or approval. A route may change or a job
+may be cancelled immediately afterwards. The future worker still needs atomic
+claim/revalidation, signed callbacks, bounded provider execution and manual review.
+Publication toggles retain the route version; material route edits invalidate old
+plans. The check never mutates jobs, audit history or verification evidence.
+
+Result validation compares timestamps by UTC instant with microsecond precision,
+accepting equivalent Z/offset forms while rejecting even a one-microsecond version
+mismatch or an observation before the route snapshot. Local contract tests now cover
+37 rejection cases; the hosted preflight suite rolls back every fixture. Authenticated
+browser acceptance of the new button remains pending, not a passed end-to-end test.

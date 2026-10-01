@@ -79,3 +79,11 @@ status is allowed. INSERT/UPDATE are audited. A partial unique index prevents
 repeated pending jobs for the same route/kind/revision. Route deletion is restricted
 while job history references it. This migration does not start a worker or add
 verification records. Run both SQL test files; each rolls back its fixtures.
+
+## Agent preflight RPC
+
+`check_agent_job(uuid)` is explicitly granted only to authenticated callers and
+requires live admin membership. It runs with caller privileges/RLS and exposes only
+private diagnostic metadata. Anonymous EXECUTE is revoked; non-admin calls raise
+42501. No execution state or queue lease is created. Run `agent_preflight_test.sql`
+with the other rollback suites after migration.

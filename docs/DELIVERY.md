@@ -159,3 +159,18 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
 - Future execution must recheck route revisions, implement leases/callback security,
   official-target controls, cost limits and evidence review. These remain blockers
   before enabling any external Agent operation.
+
+## Agent preflight checkpoint (2026-10-02, Hong Kong)
+
+- Added an admin-only read-only RPC and UI check button to distinguish stale route
+  plans, cancelled jobs, unavailable records and blocked provider connections.
+  Every response has runnable=false; no external execution is enabled.
+- Fixed result timestamp equality across Z/UTC/offset formats with microsecond
+  comparison, including sub-millisecond stale/future observation rejection.
+- Full local build passed; 37 Agent rejection cases and all SQL suites passed.
+  Applied agent_job_preflight to isolated preview and passed hosted rollback tests.
+  No preflight fixtures remain; anonymous EXECUTE is false. Security advisor findings
+  are unchanged from the prior documented RPC/membership/Auth findings.
+- Diagnostic output is a point-in-time snapshot, not a worker lease or authorization.
+  Actual provider integration/atomic claims/callbacks/evidence acceptance remain
+  blockers. New authenticated UI acceptance remains pending.
