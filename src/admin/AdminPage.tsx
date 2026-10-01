@@ -3,9 +3,10 @@ import { useAdminAuth } from "./useAdminAuth";
 import { db, isSupabaseConfigured, supabaseConfigurationError } from "./client";
 import { PAGE_SIZE, useRows } from "./useRows";
 import type { Row } from "./useRows";
+import { AgentPanel } from "./AgentPanel";
 import "./admin.css";
 
-type Tab = "tasks" | "catalog" | "verification" | "audit";
+type Tab = "tasks" | "catalog" | "verification" | "audit" | "agents";
 type CatalogTable = "companies" | "industries" | "issues" | "routes";
 
 const CATALOG: Record<CatalogTable, { label: string; fields: readonly string[]; sample: Row }> = {
@@ -85,10 +86,10 @@ function AccessDenied({ message, retry }: { message: string; retry: () => void }
 
 function Dashboard({ email }: { email: string }) {
   const [tab, setTab] = useState<Tab>("tasks");
-  const tabs: Array<[Tab, string]> = [["tasks", "任務"], ["catalog", "內容目錄"], ["verification", "驗證紀錄"], ["audit", "稽核紀錄"]];
+  const tabs: Array<[Tab, string]> = [["tasks", "任務"], ["catalog", "內容目錄"], ["verification", "驗證紀錄"], ["audit", "稽核紀錄"], ["agents", "Agent 驗證"]];
   return <main className="admin-shell admin-wide"><header className="admin-header"><div><span className="admin-kicker">FIND CS</span><h1>維護工作台</h1></div><div className="admin-account"><span>{email}</span><button className="admin-secondary" onClick={() => db?.auth.signOut()}>登出</button></div></header>
     <nav className="admin-tabs" aria-label="管理功能">{tabs.map(([id, label]) => <button key={id} aria-current={tab === id ? "page" : undefined} onClick={() => setTab(id)}>{label}</button>)}</nav>
-    {tab === "tasks" && <TasksPanel />}{tab === "catalog" && <CatalogPanel />}{tab === "verification" && <VerificationPanel />}{tab === "audit" && <AuditPanel />}
+    {tab === "tasks" && <TasksPanel />}{tab === "catalog" && <CatalogPanel />}{tab === "verification" && <VerificationPanel />}{tab === "audit" && <AuditPanel />}{tab === "agents" && <AgentPanel />}
   </main>;
 }
 

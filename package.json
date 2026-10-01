@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && npm run lint && npm run test:data && npm run validate:data && npm run test:auth && npm run test:pagination && npm run test:db && vite build",
+    "build": "npm run typecheck && npm run lint && npm run test:data && npm run validate:data && npm run test:agents && npm run test:auth && npm run test:pagination && npm run test:db && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:admin": "node scripts/admin-smoke.mjs",
@@ -14,7 +14,8 @@
     "test:data": "vite build --ssr scripts/test-data.ts --outDir .test-build --emptyOutDir && node .test-build/test-data.js",
     "test:db": "node scripts/test-db.mjs",
     "validate:data": "vite build --ssr scripts/validate-data.ts --outDir .validation-build --emptyOutDir && node .validation-build/validate-data.js",
-    "test:auth": "vite build --ssr scripts/test-admin-auth.ts --outDir .auth-build --emptyOutDir && node .auth-build/test-admin-auth.js"
+    "test:auth": "vite build --ssr scripts/test-admin-auth.ts --outDir .auth-build --emptyOutDir && node .auth-build/test-admin-auth.js",
+    "test:agents": "vite build --ssr scripts/test-agent-contracts.ts --outDir .agents-build --emptyOutDir && node .agents-build/test-agent-contracts.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

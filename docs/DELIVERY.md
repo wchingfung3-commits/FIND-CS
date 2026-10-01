@@ -134,3 +134,10 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
 - Fixed tab CSS specificity: generic button styling no longer overrides the transparent tab background, keeping the selected green label readable.
 - Removed the admin link from the public footer. Administrators use the bookmarked `/#/admin` URL. Hiding navigation is not an authorization control.
 - Read-only hosted review confirmed RLS on all eight public tables, admin-only policies, no anonymous task INSERT/route UPDATE privileges, and no authenticated INSERT privilege on admin_members. Local permission-denial tests remain in every build.
+
+## Agent preparation checkpoint (2026-10-01)
+
+- Hosted read confirmed the user-created acceptance task is done and has an UPDATE audit record. Login/task create/update are now exercised through the user's real browser; full catalog verification/publication flow remains pending.
+- Added admin Agent verification tab for transient, read-only plans using actual route snapshots. No job is queued or executed, no evidence is fabricated, and no route is published.
+- Added versioned Browser/Voice contracts and result validation, plus rejection-case tests in build. Read docs/agents.md for remaining server/provider requirements and limitations.
+- API integration, execution worker, signed callbacks and external Browser/Voice verification remain unimplemented and are release blockers for automated operation.
