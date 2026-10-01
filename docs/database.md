@@ -69,3 +69,13 @@ The test runs in one transaction and rolls back all fixtures. It checks constrai
 - Audit logs are application audit history, not tamper-proof forensic storage: a database owner can alter them. Export or stream logs to append-only storage if stronger guarantees are required.
 - Date-only verification ordering cannot distinguish two tests on the same date. The conservative precedence prevents a same-day success from hiding a negative result; add a tested-at timestamp in a later migration if exact chronology becomes necessary. Operators should put the dated official source or reproducible observation details in `evidence`; it remains private.
 - The migration does not seed catalog or verification data. This intentionally avoids presenting mock content as observed evidence.
+
+## Agent preparation queue (2026-10-01)
+
+`agent_jobs` stores private, immutable server-built route snapshots. Only admin
+clients can create jobs with `(route_id, kind)`, read them and cancel a pending job
+with `status=cancelled`. No client DELETE, snapshot edit, reactivation or execution
+status is allowed. INSERT/UPDATE are audited. A partial unique index prevents
+repeated pending jobs for the same route/kind/revision. Route deletion is restricted
+while job history references it. This migration does not start a worker or add
+verification records. Run both SQL test files; each rolls back its fixtures.

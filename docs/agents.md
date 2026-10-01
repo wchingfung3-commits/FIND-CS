@@ -1,9 +1,23 @@
 # Agent integration contract
 
-Current stage: planning and validation only. No provider SDK, background worker,
-webhook endpoint or external contact is enabled. The maintenance task table is
-still manual. The new admin Agent tab reads an RLS-protected route and renders a
-transient plan; it does not enqueue or persist it, claim verification, or publish.
+Current stage: durable preparation queue and validation only. No provider SDK,
+background worker, webhook endpoint or external contact is enabled. The maintenance
+task table remains manual. The admin Agent tab saves, paginates, inspects and cancels
+`agent_jobs`; preparation records cannot execute, claim verification, or publish.
+
+The server builds the immutable plan under a route row lock, using the current
+revision and target. Authenticated admins may INSERT only `kind` and `route_id`,
+UPDATE only `status` to cancel, and SELECT private jobs. Non-admin RLS denies access;
+anonymous users have no grants. Duplicate pending route/kind/revision jobs are
+prevented by a unique index. Cancelled records remain in audit/history and may be
+recreated as a new job. Foreign keys prevent deleting a route with job history.
+
+The only states are `blocked_provider` and `cancelled`. There is no ready/running/
+succeeded state. The future worker must recheck route revision and revision start,
+authorized official targets and limits before execution. Route edits do not mutate
+stored history; cancel old plans and prepare anew. Planning checks are conservative
+and do not replace DNS/redirect checks. Limits remain specifications, not running
+provider controls.
 
 `src/agents/contracts.ts` defines versioned plans and validates untrusted result
 objects. Plans pin route ID, revision and revision start. Browser targets must be
@@ -20,7 +34,7 @@ candidates only. No verification insert or publication follows validation today.
 ## Required before provider execution
 
 - Select a provider with documented regional/billing support and approve costs.
-- Server-side auth/admin authorization, durable queue, leased jobs, bounded retry,
+- Server-side worker authorization, leased jobs, bounded retry,
   idempotent provider callbacks and signed webhook verification.
 - Store credentials server-side. Do not trust frontend plans/limits/approval flags.
   Rebuild plans from the database and check revision again before accepting results.
@@ -35,3 +49,7 @@ candidates only. No verification insert or publication follows validation today.
 
 Tests: `npm run test:agents`; included in standard build. Tests are local contract
 checks and do not prove any external provider integration works.
+
+Queue tests: `npm run test:db` runs every SQL suite against all migrations. Hosted
+rollback tests exercise admin creation/cancellation/audit, duplicate blocking,
+immutable snapshots, invalid targets and anonymous/non-admin denial. No fixtures persist.

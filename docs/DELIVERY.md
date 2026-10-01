@@ -141,3 +141,21 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
 - Added admin Agent verification tab for transient, read-only plans using actual route snapshots. No job is queued or executed, no evidence is fabricated, and no route is published.
 - Added versioned Browser/Voice contracts and result validation, plus rejection-case tests in build. Read docs/agents.md for remaining server/provider requirements and limitations.
 - API integration, execution worker, signed callbacks and external Browser/Voice verification remain unimplemented and are release blockers for automated operation.
+
+## Durable Agent preparation checkpoint (2026-10-01)
+
+- Added `agent_jobs`: admin-only create/read/cancel, immutable server-built snapshots,
+  duplicate prevention and audit history. The Agent tab now persists and paginates
+  records rather than displaying only a transient plan.
+- States are limited to blocked_provider/cancelled. No executable queue state,
+  background execution, provider callbacks, new evidence or automatic publication.
+- Local build and rollback tests pass, including anonymous/non-admin denial,
+  client snapshot-edit denial, cancellation audit and duplicate rejection.
+- Applied agent_jobs migration to isolated preview; both hosted rollback suites
+  passed and no test jobs/routes/audits remain. Security advisor reports only the
+  previously documented RPC/membership/Auth findings, no new queue findings.
+  Authenticated browser acceptance of the new queue UI is still pending;
+  previous login/task acceptance does not cover this new feature.
+- Future execution must recheck route revisions, implement leases/callback security,
+  official-target controls, cost limits and evidence review. These remain blockers
+  before enabling any external Agent operation.

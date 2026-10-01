@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 
 const migrationsUrl = new URL("../supabase/migrations/", import.meta.url);
-const testUrl = new URL("../supabase/tests/initial_schema_test.sql", import.meta.url);
+const testsUrl = new URL("../supabase/tests/", import.meta.url);
 
 const bootstrapSql = String.raw`
   create role anon nologin;
@@ -45,7 +45,10 @@ try {
   );
   await db.exec(migration);
   }
-  await db.exec(await readFile(testUrl, "utf8"));
+  for (const name of (await readdir(testsUrl)).filter(name => name.endsWith(".sql")).sort()) {
+    await db.exec(await readFile(new URL(name, testsUrl), "utf8"));
+    console.log(`Passed ${name}`);
+  }
   console.log("Database migration and rollback tests passed.");
 } finally {
   await db.close();
