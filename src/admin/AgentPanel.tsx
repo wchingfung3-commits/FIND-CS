@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { ProviderConnections } from "./ProviderConnections";
 import { db } from "./client";
 import { PAGE_SIZE, useRows } from "./useRows";
 import { readJobCheck, jobCheckMessage } from "../agents/contracts";
@@ -63,6 +64,7 @@ export function AgentPanel() {
   }
   return <section className="admin-panel">
     <div className="admin-warning" role="status">Browser Agent 及 Voice Agent 尚未連接。此頁儲存待接駁任務，不會開啟客服對話、撥打電話或建立驗證紀錄。</div>
+    <ProviderConnections />
     <div className="admin-grid">
       <form className="admin-card admin-form" onSubmit={prepare}>
         <h2>建立待接駁任務</h2>

@@ -1,7 +1,8 @@
 # Agent integration contract
 
-Current stage: durable preparation queue and validation only. No provider SDK,
-background worker, webhook endpoint or external contact is enabled. The maintenance
+Current stage: durable preparation queue, validation and server-side read-only
+Browserbase/Retell credential diagnostics. No background worker, webhook endpoint
+or external contact is enabled. See provider-setup.md for account setup. The maintenance
 task table remains manual. The admin Agent tab saves, paginates, inspects and cancels
 `agent_jobs`; preparation records cannot execute, claim verification, or publish.
 

@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import { inspectConnections } from '../server/provider-connections.mjs';
+const env = { VITE_SUPABASE_URL: 'https://fixture.supabase.co', VITE_SUPABASE_ANON_KEY: 'public-fixture',
+  BROWSERBASE_API_KEY: 'private-browser-fixture', BROWSERBASE_PROJECT_ID: 'project-fixture', RETELL_API_KEY: 'private-voice-fixture' };
+const authorization = 'Bearer authenticated-fixture';
+let requests = [], admin = true, authStatus = 200, providerStatus = 200, malformed = false, throws = false;
+const fetchImpl = async (url, options) => {
+  requests.push({ url, options });
+  assert.equal(options.redirect, 'error'); assert.ok(options.signal);
+  if (url.endsWith('/auth/v1/user')) return Response.json({ id: 'user-fixture' }, { status: authStatus });
+  if (url.endsWith('/rpc/is_admin')) return Response.json(admin);
+  if (throws) throw new Error('upstream secret private-voice-fixture');
+  return Response.json(malformed ? {} : url.includes('browserbase') ? { id: 'project-fixture', ownerId: 'private-owner' } : { items: [] }, { status: providerStatus });
+};
+const run = (patch = {}) => inspectConnections({ authorization, env, fetchImpl, ...patch });
+assert.equal((await run({ authorization: undefined })).status, 401); assert.equal(requests.length, 0);
+assert.equal((await run({ authorization: 'Bearer a b' })).status, 401);
+assert.equal((await run({ env: {} })).status, 503);
+admin = false; assert.equal((await run()).status, 403); assert.equal(requests.length, 2);
+requests = []; admin = true; authStatus = 401; assert.equal((await run()).status, 401); assert.equal(requests.length, 1);
+requests = []; authStatus = 500; assert.equal((await run()).status, 503); assert.equal(requests.length, 1);
+authStatus = 200; requests = [];
+let result = await run(); assert.equal(result.status, 200);
+assert.ok(result.body.providers.every(p => p.state === 'api_connected' && p.executionEnabled === false));
+assert.ok(!JSON.stringify(result).includes('private-'));
+assert.equal(requests.filter(r => r.url.includes('/projects/')).length, 1);
+const voice = requests.find(r => r.url.includes('retellai.com'));
+assert.equal(voice.url, 'https://api.retellai.com/v2/list-agents?limit=1');
+assert.equal(voice.options.method, 'POST');
+assert.deepEqual(JSON.parse(voice.options.body), { filter_criteria: { channel: { type: 'string', op: 'eq', value: 'voice' } } });
+assert.ok(!requests.some(r => /create-phone-call|\/sessions/.test(r.url)));
+for (const [status, state] of [[401, 'credentials_rejected'], [403, 'credentials_rejected'], [429, 'rate_limited'], [500, 'provider_error']]) {
+  providerStatus = status; result = await run(); assert.ok(result.body.providers.every(p => p.state === state));
+}
+providerStatus = 200; malformed = true; assert.ok((await run()).body.providers.every(p => p.state === 'invalid_response'));
+malformed = false; throws = true; result = await run(); assert.ok(result.body.providers.every(p => p.state === 'connection_failed'));
+assert.ok(!JSON.stringify(result).includes('private-')); throws = false;
+requests = []; result = await run({ env: { VITE_SUPABASE_URL: env.VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY: env.VITE_SUPABASE_ANON_KEY } });
+assert.ok(result.body.providers.every(p => p.state === 'missing_config')); assert.equal(requests.length, 2);
+result = await run({ env: { ...env, BROWSERBASE_PROJECT_ID: '../private?secret' } });
+assert.equal(result.body.providers[0].state, 'invalid_config');
+console.log('PASS provider authorization, credential checks, redaction, failures and no-execution boundary');
+const { default: handler } = await import('../api/agent-connections.mjs');
+const cacheHeaders = {};
+let status, body;
+const res = { setHeader(key, value) { cacheHeaders[key] = value; }, status(value) { status = value; return this; }, json(value) { body = value; } };
+await handler({ method: 'GET', headers: {} }, res);
+assert.equal(status, 405); assert.equal(cacheHeaders.Allow, 'POST');
+await handler({ method: 'POST', headers: {} }, res);
+assert.equal(status, 401); assert.equal(body.error, 'authentication_required');
+assert.equal(cacheHeaders['Cache-Control'], 'no-store, private');
+assert.equal(cacheHeaders.Vary, 'Authorization');
+console.log('PASS deployed handler method/auth/cache boundaries');

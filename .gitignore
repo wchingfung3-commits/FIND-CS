@@ -29,3 +29,6 @@ dist-ssr
 .auth-build
 
 .agents-build
+
+.env.*
+!.env.example

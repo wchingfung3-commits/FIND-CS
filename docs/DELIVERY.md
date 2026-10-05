@@ -195,3 +195,24 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
   or real provider acceptance. The temporary test browser lacks CJK fonts; text
   content/interaction assertions passed, but Chinese typography is not visually
   accepted from its screenshots. Hosted queue UI/provider release gates remain.
+
+## Provider connection checkpoint (2026-10-05, Hong Kong)
+
+- Added /api/agent-connections as a Vercel Node function. It validates the caller
+  with Supabase Auth and is_admin before making fixed-host metadata requests to
+  Browserbase and Retell. Responses disclose only connection state, never keys or
+  upstream account data; all responses are private/no-store.
+- The Agent panel now offers an explicit connection check. No sessions/calls/jobs
+  are executed. executionEnabled remains false and the durable queue stays blocked.
+- Provider regression tests are included in every build: denied/expired auth,
+  missing configuration, provider errors, malformed responses, secret redaction
+  and HTTP/cache boundaries. Chromium mocked API checks cover the panel's success,
+  invalid execution response and denied permission.
+- Real provider credentials are absent from Preview. Read docs/provider-setup.md
+  for account-owner steps. API connectivity and real provider execution have not
+  passed acceptance. Browserbase Free is the initial browser candidate; Retell
+  managed international telephony does not list Hong Kong, requiring separately
+  verified custom telephony for the voice path. No paid service is enabled.
+- This supersedes earlier statements that all provider API integration is absent:
+  read-only credential diagnostics now exist. Worker leases, callbacks, official
+  target controls, costs and evidence acceptance remain execution blockers.

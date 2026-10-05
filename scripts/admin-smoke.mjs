@@ -104,6 +104,16 @@ try {
     }
     return json(route, []);
   });
+  let providerReply = { executionEnabled: false, providers: [
+    { provider: "browserbase", state: "missing_config", executionEnabled: false },
+    { provider: "retell", state: "api_connected", executionEnabled: false },
+  ] };
+  let providerResponseStatus = 200;
+  await admin.route("**/api/agent-connections", route => {
+    assert.equal(route.request().method(), "POST");
+    assert.equal(route.request().headers().authorization, "Bearer mock-access");
+    return json(route, providerReply, providerResponseStatus);
+  });
   await admin.goto("http://127.0.0.1:4176/#/admin");
   await admin.getByRole("heading", { name: "新增維護任務" }).waitFor();
   assert.equal(await admin.getByRole("button", { name: "FIND CS", exact: true }).count(), 0, "public sticky header rendered in admin");
@@ -114,6 +124,16 @@ try {
   assert.equal(await admin.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "admin tasks screen overflows narrow viewport");
   await admin.getByRole("button", { name: "Agent 驗證", exact: true }).click();
   await admin.getByText("未有任務紀錄。", { exact: true }).waitFor();
+  await admin.getByRole("button", { name: "檢查服務連線", exact: true }).click();
+  await admin.getByText("Browserbase：未設定伺服器連線資料", { exact: true }).waitFor();
+  await admin.getByText("Retell Voice：API 驗證成功（尚未開放執行）", { exact: true }).waitFor();
+  providerReply = { executionEnabled: true, providers: [] };
+  await admin.getByRole("button", { name: "檢查服務連線", exact: true }).click();
+  await admin.getByText("連線檢查回應無效，未允許執行。", { exact: true }).waitFor();
+  providerResponseStatus = 403;
+  await admin.getByRole("button", { name: "檢查服務連線", exact: true }).click();
+  await admin.getByText("此帳戶沒有連線檢查權限。", { exact: true }).waitFor();
+
   await admin.getByLabel("路線 ID").fill(` ${routeId} `);
   await admin.getByRole("button", { name: "儲存待接駁任務", exact: true }).click();
   await admin.getByRole("button", { name: "查看規格", exact: true }).waitFor();
