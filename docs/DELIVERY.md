@@ -174,3 +174,24 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
 - Diagnostic output is a point-in-time snapshot, not a worker lease or authorization.
   Actual provider integration/atomic claims/callbacks/evidence acceptance remain
   blockers. New authenticated UI acceptance remains pending.
+
+## Admin browser regression checkpoint (2026-10-05, Hong Kong)
+
+- Ran actual Chromium against local Vite with mocked Supabase responses. Setup,
+  failed login, non-admin denial (no private-data request), task creation/error,
+  Agent save/duplicate rejection, snapshot display, all four preflight states,
+  invalid ready responses, RPC/list failures and retry, failed/conflicting/successful
+  cancellation, conditional PATCH filters and mobile overflow checks passed.
+- Split the admin route from the public header/footer layout. The maintenance
+  dashboard uses its own header; the public sticky home navigation is absent there.
+  Public home navigation still renders and has no admin footer link.
+- Added test:admin:required so a missing browser fails the acceptance command.
+  Optional test:admin continues to report SKIP when Chromium is absent; SKIP is never
+  a passing browser acceptance. Fixed the old task test's form-reset race and added
+  mocked Content-Range exposure to match browser API behavior.
+- Full build and existing contract/auth/pagination/database suites passed. No new
+  application dependencies, hosted data writes, providers or charges.
+- These are browser-to-mocked-API regressions, not authenticated hosted API writes
+  or real provider acceptance. The temporary test browser lacks CJK fonts; text
+  content/interaction assertions passed, but Chinese typography is not visually
+  accepted from its screenshots. Hosted queue UI/provider release gates remain.

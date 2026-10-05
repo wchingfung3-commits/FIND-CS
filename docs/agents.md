@@ -73,3 +73,13 @@ accepting equivalent Z/offset forms while rejecting even a one-microsecond versi
 mismatch or an observation before the route snapshot. Local contract tests now cover
 37 rejection cases; the hosted preflight suite rolls back every fixture. Authenticated
 browser acceptance of the new button remains pending, not a passed end-to-end test.
+
+## Browser regression tests
+
+`npm run test:admin:required` requires installed Playwright Chromium (or an explicit
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE`); it fails instead of skipping when absent. The
+current Work runtime supplies Playwright. `npm run test:admin` is an optional smoke
+command and may report SKIP. The browser suite mocks Supabase HTTP responses and
+covers Agent save/read/check/cancel, errors/retry/duplicates, non-admin UI denial
+and mobile overflow. Real hosted login/writes and provider execution remain separate
+acceptance gates. Optional ADMIN_SMOKE_SCREENSHOT captures a local test screenshot.

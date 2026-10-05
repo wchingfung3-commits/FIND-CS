@@ -36,6 +36,8 @@ function App() {
     return () => { active = false; };
   }, [live, isAdminPage, retry]);
 
+  if (isAdminPage) return <AdminPage />;
+
   let content: React.ReactNode = null;
 
   switch (route.page) {
@@ -61,8 +63,8 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50">
       <Header onHomeClick={() => navigate("/")} />
-      {!isAdminPage && !live && <p role="status" className="bg-amber-50 p-3 text-center text-sm text-amber-900">示範環境：客服資料及驗證紀錄為開發樣本，請勿據此聯絡客服。</p>}
-      {isAdminPage ? <AdminPage /> : catalogState === 'loading' ? <p role="status" className="p-8 text-center">正在載入已發布資料…</p> : catalogState === 'error' ? <div role="alert" className="p-8 text-center"><p>資料暫時無法載入；不會以示範資料替代。</p><button className="mt-4 rounded bg-teal-700 px-4 py-2 text-white" onClick={() => setRetry(n => n + 1)}>重試</button></div> : <main>{content}</main>}
+      {!live && <p role="status" className="bg-amber-50 p-3 text-center text-sm text-amber-900">示範環境：客服資料及驗證紀錄為開發樣本，請勿據此聯絡客服。</p>}
+      {catalogState === 'loading' ? <p role="status" className="p-8 text-center">正在載入已發布資料…</p> : catalogState === 'error' ? <div role="alert" className="p-8 text-center"><p>資料暫時無法載入；不會以示範資料替代。</p><button className="mt-4 rounded bg-teal-700 px-4 py-2 text-white" onClick={() => setRetry(n => n + 1)}>重試</button></div> : <main>{content}</main>}
       <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
         FIND CS — 香港客服導航平台 · {live ? '已發布資料' : '開發示範'}
       </footer>
