@@ -216,3 +216,7 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
 - This supersedes earlier statements that all provider API integration is absent:
   read-only credential diagnostics now exist. Worker leases, callbacks, official
   target controls, costs and evidence acceptance remain execution blockers.
+- Full build and required Chromium regression command passed after the final code
+  changes. Preview commit 5aa9e17 reached READY; the deployed Node endpoint returned
+  HTTP 405 to GET with Allow: POST, private/no-store and Vary: Authorization. This
+  proves deployment of the function, not an authenticated live provider check.

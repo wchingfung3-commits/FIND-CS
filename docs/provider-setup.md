@@ -45,6 +45,6 @@ References checked 2026-10-05:
 - https://www.browserbase.com/pricing
 - https://www.retellai.com/pricing
 - https://docs.retellai.com/deploy/international-call
-- https://docs.retellai.com/deploy/kyc
+- https://docs.retellai.com/accounts/kyc
 - https://www.twilio.com/en-us/voice/pricing/hk
 - https://www.twilio.com/docs/api/errors/21219
