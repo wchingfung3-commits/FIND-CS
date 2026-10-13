@@ -67,6 +67,11 @@ try {
     steps: ["Open chat"], timeoutSeconds: 180, maxAttempts: 1,
     stopAt: ["human_reached", "account_verification", "payment", "captcha"],
     execution: "not_connected", publication: "manual_review_required" };
+  const parentCompanies = [{ id: 'acme', name: 'Acme' }, { id: 'beta', name: 'Beta' },
+    ...Array.from({ length: 49 }, (_, i) => ({ id: `company-${i}`, name: `Company ${i}` }))];
+  let catalogRoute = null; let catalogInsert = null; let catalogPatch = null;
+  let failCatalogSave = false; let conflictCatalogSave = false; let failParents = false;
+  const issueRequests = [];
   let mockJobs = []; let savedJob = null; let cancelRequest = null;
   let checkState = "blocked_provider"; let failCheck = false; let failCancel = false;
   let emptyCancel = false; let failList = false;
@@ -101,6 +106,29 @@ try {
       return json(route, { jobId, state: checkState, runnable: checkState === "ready",
         routeRevision: 1, currentRouteRevision: checkState === "stale_route" ? 2 : 1,
         checkedAt: "2026-10-05T08:00:00+00:00" });
+    }
+    const endpoint = new URL(url).pathname.split('/').pop();
+    if (['companies', 'industries', 'issues', 'routes'].includes(endpoint)) {
+      const params = new URL(url).searchParams;
+      if (request.method() === 'GET') {
+        if (failParents && endpoint === 'companies') return json(route, { message: 'parent lookup failed' }, 500);
+        let rows = endpoint === 'companies' ? parentCompanies : endpoint === 'industries' ? [{ id: 'retail', name: '零售', icon: 'Store' }] : endpoint === 'routes' ? (catalogRoute ? [catalogRoute] : []) : [];
+        if (endpoint === 'issues') { issueRequests.push(params.get('company_id')); rows = params.get('company_id') === 'eq.acme' ? [{ id: 'refund', name: '退款' }] : [{ id: 'billing', name: '帳單' }]; }
+        if (params.has('name')) rows = rows.filter(row => row.name?.includes(params.get('name').replace(/^ilike.%|%$/g, '')));
+        const count = rows.length; const start = Number(params.get('offset') || 0); rows = rows.slice(start, start + Number(params.get('limit') || 50));
+        return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-expose-headers': 'content-range', 'content-range': count ? `${start}-${start + rows.length - 1}/${count}` : '*/0' }, body: JSON.stringify(rows) });
+      }
+      if (endpoint === 'routes' && request.method() === 'POST') {
+        catalogInsert = request.postDataJSON();
+        if (failCatalogSave) return json(route, { message: 'catalog save denied' }, 403);
+        catalogRoute = { ...catalogInsert, updated_at: '2026-10-13T12:00:00Z' };
+        return json(route, [{ id: catalogRoute.id }], 201);
+      }
+      if (endpoint === 'routes' && request.method() === 'PATCH') {
+        catalogPatch = { body: request.postDataJSON(), params: Object.fromEntries(params) };
+        if (conflictCatalogSave) return json(route, []);
+        catalogRoute = { ...catalogRoute, ...catalogPatch.body }; return json(route, [{ id: catalogRoute.id }]);
+      }
     }
     return json(route, []);
   });
@@ -181,13 +209,83 @@ try {
   assert.equal(cancelUrl.searchParams.get("status"), "eq.blocked_provider");
   assert.equal(await admin.getByRole("button", { name: "取消任務", exact: true }).count(), 0);
   assert.equal(await admin.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "Agent screen overflows narrow viewport");
+  await admin.getByRole('button', { name: '內容目錄', exact: true }).click();
+  await admin.getByLabel('資料類型').selectOption('routes');
+  await admin.getByLabel('記錄 ID', { exact: true }).fill('acme-refund-phone');
+  await expect(admin.getByLabel('所屬公司', { exact: true })).toBeEnabled();
+  await admin.getByRole('button', { name: '下一批選項' }).click();
+  await expect(admin.getByLabel('所屬公司', { exact: true })).toContainText('Company 48');
+  await admin.getByRole('button', { name: '上一批選項' }).click();
+  await expect(admin.getByLabel('所屬公司', { exact: true })).toContainText('Acme');
+  await admin.getByLabel('所屬公司', { exact: true }).selectOption('acme');
+  await expect(admin.getByLabel('適用問題', { exact: true })).toBeEnabled();
+  await admin.getByLabel('適用問題', { exact: true }).selectOption('refund');
+  await admin.getByLabel('所屬公司', { exact: true }).selectOption('beta');
+  await expect(admin.getByLabel('適用問題', { exact: true })).toBeEnabled();
+  await expect(admin.getByLabel('適用問題', { exact: true })).toHaveValue('');
+  await expect(admin.getByLabel('適用問題', { exact: true })).not.toContainText('退款');
+  await admin.getByLabel('所屬公司', { exact: true }).selectOption('acme');
+  await expect(admin.getByLabel('適用問題', { exact: true })).toContainText('退款');
+  await admin.getByLabel('適用問題', { exact: true }).selectOption('refund');
+  await admin.getByLabel('接駁步驟（每行一個步驟）').fill(' 撥打電話\n\n 按 1 ');
+  await admin.getByLabel('聯絡網址／電話連結').fill('javascript:alert(1)');
+  await admin.getByRole('button', { name: '儲存', exact: true }).click();
+  await admin.getByText(/聯絡網址無效/).waitFor(); assert.equal(catalogInsert, null);
+  await admin.getByLabel('聯絡網址／電話連結').fill('tel:+85212345678');
+  failCatalogSave = true; await admin.getByRole('button', { name: '儲存', exact: true }).click();
+  await admin.getByText('catalog save denied', { exact: true }).waitFor();
+  await expect(admin.getByLabel('記錄 ID', { exact: true })).toHaveValue('acme-refund-phone');
+  failCatalogSave = false; await admin.getByRole('button', { name: '儲存', exact: true }).click();
+  await expect(admin.getByLabel('記錄 ID', { exact: true })).toHaveValue('');
+  assert.deepEqual(catalogInsert.steps, ['撥打電話', '按 1']); assert.equal(catalogInsert.published, false);
+  assert.equal(catalogInsert.issue_id, 'refund'); assert.ok(!('verification_status' in catalogInsert));
+  await admin.getByRole('button', { name: '編輯', exact: true }).click();
+  await expect(admin.getByLabel('記錄 ID', { exact: true })).toBeDisabled();
+  await admin.getByRole('checkbox').check();
+  admin.once('dialog', dialog => dialog.dismiss());
+  await admin.getByRole('button', { name: '儲存', exact: true }).click(); assert.equal(catalogPatch, null);
+  conflictCatalogSave = true; admin.once('dialog', dialog => dialog.accept());
+  await admin.getByRole('button', { name: '儲存', exact: true }).click();
+  await admin.getByText(/記錄未能儲存/).waitFor();
+  assert.equal(catalogPatch.params.updated_at, 'eq.2026-10-13T12:00:00Z');
+  assert.ok(!('id' in catalogPatch.body)); assert.equal(catalogPatch.body.published, true);
+  await admin.getByRole('checkbox').uncheck(); conflictCatalogSave = false;
+  await admin.getByRole('button', { name: '儲存', exact: true }).click();
+  await expect(admin.getByLabel('記錄 ID', { exact: true })).toHaveValue('');
+  failParents = true;
+  await admin.getByLabel('所屬公司搜尋', { exact: true }).fill('Beta');
+  await expect(admin.getByRole('alert')).toContainText('選項載入失敗，請重試。');
+  await expect(admin.getByLabel('所屬公司', { exact: true })).toBeDisabled();
+  failParents = false; await admin.getByRole('button', { name: '重試選項' }).click();
+  await expect(admin.getByLabel('所屬公司', { exact: true })).toContainText('Beta');
+  assert.ok(issueRequests.every(filter => ['eq.acme', 'eq.beta'].includes(filter)), 'issues fetched without company scoping');
+  assert.equal(await admin.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'catalog form overflows mobile');
   assert.deepEqual(pageErrors, [], "Admin UI raised runtime errors");
   if (process.env.ADMIN_SMOKE_SCREENSHOT) await admin.screenshot({ path: process.env.ADMIN_SMOKE_SCREENSHOT, fullPage: true });
   const publicPage = await browser.newPage();
   await publicPage.goto("http://127.0.0.1:4176/#/");
   await publicPage.getByRole("button", { name: "FIND CS", exact: true }).waitFor();
   assert.equal(await publicPage.getByRole("link", { name: /後台/ }).count(), 0);
-  console.log("PASS admin + Agent browser flows (mocked Supabase; no live writes)");
+  await publicPage.goto('http://127.0.0.1:4176/#/pilot');
+  await publicPage.getByRole('heading', { name: '首批公司客服研究預覽' }).waitFor();
+  await expect(publicPage.getByRole('status')).toContainText('尚未完成電話／聊天實測');
+  assert.equal(await publicPage.getByText('示範環境：客服資料及驗證紀錄為開發樣本，請勿據此聯絡客服。', { exact: true }).count(), 0);
+  await publicPage.getByRole('button', { name: '恆生銀行', exact: true }).click();
+  await publicPage.getByLabel('你想查詢甚麼？').selectOption('可疑電話／訊息舉報');
+  await publicPage.getByText('官方按鍵指引（未實測）', { exact: true }).waitFor();
+  await expect(publicPage.getByText('選擇語言後，按快速鍵 #，再按 9。', { exact: true })).toBeVisible();
+  await publicPage.getByRole('button', { name: 'DHL', exact: true }).click();
+  await publicPage.getByText('WhatsApp · 來源不一致，暫停聯絡連結', { exact: true }).waitFor();
+  assert.equal(await publicPage.getByRole('link', { name: '開啟官方 WhatsApp', exact: true }).count(), 0);
+  await publicPage.getByRole('button', { name: 'HKTVmall', exact: true }).click();
+  await expect(publicPage.getByLabel('你想查詢甚麼？')).toHaveValue('其他問題／不確定分類');
+  assert.equal(await publicPage.getByRole('link', { name: '開啟撥號', exact: true }).count(), 0);
+  await publicPage.setViewportSize({ width: 390, height: 844 });
+  for (const name of ['CSL','恆生銀行','稅務局','DHL','HKTVmall']) {
+    await publicPage.getByRole('button', { name, exact: true }).click();
+    assert.equal(await publicPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, `${name} pilot overflows mobile`);
+  }
+  console.log("PASS admin + Agent + guided catalog + public research browser flows (mocked Supabase; no live writes or provider contact)");
 } finally {
   await browser.close(); plain?.kill(); mocked?.kill();
 }

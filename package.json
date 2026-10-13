@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && npm run lint && npm run test:data && npm run validate:data && npm run test:agents && npm run test:auth && npm run test:pagination && npm run test:db && npm run test:providers && vite build",
+    "build": "npm run typecheck && npm run lint && npm run test:data && npm run validate:data && npm run test:agents && npm run test:auth && npm run test:pagination && npm run test:db && npm run test:providers && npm run test:catalog && npm run test:pilot && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test:admin": "node scripts/admin-smoke.mjs",
@@ -17,7 +17,9 @@
     "test:auth": "vite build --ssr scripts/test-admin-auth.ts --outDir .auth-build --emptyOutDir && node .auth-build/test-admin-auth.js",
     "test:agents": "vite build --ssr scripts/test-agent-contracts.ts --outDir .agents-build --emptyOutDir && node .agents-build/test-agent-contracts.js",
     "test:admin:required": "node scripts/admin-smoke.mjs --require-browser",
-    "test:providers": "node scripts/test-provider-connections.mjs"
+    "test:providers": "node scripts/test-provider-connections.mjs",
+    "test:catalog": "vite build --ssr scripts/test-catalog-form.ts --outDir .catalog-build --emptyOutDir && node .catalog-build/test-catalog-form.js",
+    "test:pilot": "vite build --ssr scripts/test-pilot.ts --outDir .pilot-build --emptyOutDir && node .pilot-build/test-pilot.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

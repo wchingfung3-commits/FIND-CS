@@ -6,6 +6,7 @@ import { CompanyPage } from "@/pages/CompanyPage";
 import { RoutePage } from "@/pages/RoutePage";
 import { IssueRoutePage } from "@/pages/IssueRoutePage";
 import { useEffect, useState } from "react";
+import { PilotPage } from "@/pages/PilotPage";
 import { AdminPage } from "@/admin/AdminPage";
 import { db } from "@/admin/client";
 import { replaceCatalog } from "@/lib/catalog";
@@ -14,12 +15,13 @@ function App() {
   const [hash, navigate] = useHashRoute();
   const route = parseRoute(hash);
   const isAdminPage = hash === '/admin' || hash.startsWith('/admin/');
+  const isPilotPage = hash === '/pilot';
   const live = import.meta.env.VITE_CATALOG_MODE === 'live';
   const [catalogState, setCatalogState] = useState(live ? 'loading' : 'ready');
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    if (!live || isAdminPage) return;
+    if (!live || isAdminPage || isPilotPage) return;
     let active = true;
     setCatalogState('loading');
     async function load() {
@@ -34,9 +36,10 @@ function App() {
     }
     void load();
     return () => { active = false; };
-  }, [live, isAdminPage, retry]);
+  }, [live, isAdminPage, isPilotPage, retry]);
 
   if (isAdminPage) return <AdminPage />;
+  if (isPilotPage) return <PilotPage navigate={navigate} />;
 
   let content: React.ReactNode = null;
 
@@ -63,7 +66,7 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50">
       <Header onHomeClick={() => navigate("/")} />
-      {!live && <p role="status" className="bg-amber-50 p-3 text-center text-sm text-amber-900">示範環境：客服資料及驗證紀錄為開發樣本，請勿據此聯絡客服。</p>}
+      {!live && <p role="status" className="bg-amber-50 p-3 text-center text-sm text-amber-900">示範環境：客服資料及驗證紀錄為開發樣本，請勿據此聯絡客服。 <a href="#/pilot" className="font-bold underline">查看首批五間公司的官方來源研究</a></p>}
       {catalogState === 'loading' ? <p role="status" className="p-8 text-center">正在載入已發布資料…</p> : catalogState === 'error' ? <div role="alert" className="p-8 text-center"><p>資料暫時無法載入；不會以示範資料替代。</p><button className="mt-4 rounded bg-teal-700 px-4 py-2 text-white" onClick={() => setRetry(n => n + 1)}>重試</button></div> : <main>{content}</main>}
       <footer className="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
         FIND CS — 香港客服導航平台 · {live ? '已發布資料' : '開發示範'}

@@ -4,34 +4,11 @@ import { db, isSupabaseConfigured, supabaseConfigurationError } from "./client";
 import { PAGE_SIZE, useRows } from "./useRows";
 import type { Row } from "./useRows";
 import { AgentPanel } from "./AgentPanel";
+import { CatalogFields } from "./CatalogFields";
+import { CATALOG, catalogPayload, type CatalogTable } from "./catalogForm";
 import "./admin.css";
 
 type Tab = "tasks" | "catalog" | "verification" | "audit" | "agents";
-type CatalogTable = "companies" | "industries" | "issues" | "routes";
-
-const CATALOG: Record<CatalogTable, { label: string; fields: readonly string[]; sample: Row }> = {
-  companies: {
-    label: "公司",
-    fields: ["id", "name", "industry", "description", "official_url"],
-    sample: { id: "", name: "", industry: "", description: "", official_url: "" },
-  },
-  industries: {
-    label: "行業",
-    fields: ["id", "name", "icon"],
-    sample: { id: "", name: "", icon: "Building2" },
-  },
-  issues: {
-    label: "問題",
-    fields: ["id", "company_id", "name", "description"],
-    sample: { id: "", company_id: "", name: "", description: "" },
-  },
-  routes: {
-    label: "聯絡路線",
-    fields: ["id", "company_id", "issue_id", "channel_type", "category", "is_human_support", "opening_hours", "steps", "action_url", "action_label", "published"],
-    sample: { id: "", company_id: "", issue_id: null, channel_type: "phone", category: "human", is_human_support: true, opening_hours: "", steps: [], action_url: "", action_label: "", published: false },
-  },
-};
-
 const formatDate = (value: unknown) => value ? new Date(String(value)).toLocaleString("zh-HK") : "—";
 const asText = (value: unknown) => typeof value === "string" ? value : "";
 const shortId = (value: unknown) => asText(value).slice(0, 10) || "—";
@@ -41,7 +18,6 @@ function hongKongNow() {
   return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}:${part("second")}`;
 }
 const hongKongDateTime = (value: unknown) => value ? new Intl.DateTimeFormat("zh-HK", { timeZone: "Asia/Hong_Kong", dateStyle: "short", timeStyle: "short" }).format(new Date(String(value))) : "";
-const NULLABLE_TEXT_FIELDS = new Set(["description", "official_url", "issue_id", "opening_hours", "action_url", "action_label"]);
 
 export function AdminPage() {
   const auth = useAdminAuth(db);
@@ -132,24 +108,43 @@ function TasksPanel() {
 
 function CatalogPanel() {
   const [table, setTable] = useState<CatalogTable>("companies"); const state = useRows(table, table === "routes" ? "updated_at" : "id");
-  const config = CATALOG[table]; const [selectedId, setSelectedId] = useState<string | null>(null); const [selectedVersion, setSelectedVersion] = useState<string | null>(null); const [json, setJson] = useState(JSON.stringify(config.sample, null, 2)); const [busy, setBusy] = useState(false);
-  useEffect(() => { setSelectedId(null); setSelectedVersion(null); setJson(JSON.stringify(CATALOG[table].sample, null, 2)); }, [table]);
-  const select = (row: Row) => { setSelectedId(String(row.id)); setSelectedVersion(asText(row.updated_at) || null); const allowed = Object.fromEntries(config.fields.map(key => [key, row[key] ?? null])); setJson(JSON.stringify(allowed, null, 2)); };
-  const fresh = () => { setSelectedId(null); setSelectedVersion(null); setJson(JSON.stringify(config.sample, null, 2)); };
-  const save = async (event: FormEvent) => { event.preventDefault(); if (!db) return; const requestTable = table; state.setError(""); let parsed: unknown; try { parsed = JSON.parse(json); } catch { state.setError("JSON 格式不正確。"); return; }
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") { state.setError("內容必須是 JSON 物件。"); return; }
-    const source = parsed as Row; const unknown = Object.keys(source).filter(key => !config.fields.includes(key)); if (unknown.length) { state.setError(`不允許的欄位：${unknown.join(", ")}`); return; }
-    if (selectedId && String(source.id) !== selectedId) { state.setError("編輯時不可更改主 ID；如需新 ID，請新增記錄。"); return; }
-    const payload = Object.fromEntries(config.fields.filter(key => key in source && (!selectedId || key !== "id")).map(key => [key, NULLABLE_TEXT_FIELDS.has(key) && source[key] === "" ? null : source[key]])); setBusy(true);
-    let query = selectedId ? db.from(requestTable).update(payload).eq("id", selectedId) : db.from(requestTable).insert(payload);
-    if (selectedId && selectedVersion) query = query.eq("updated_at", selectedVersion);
-    const { data, error } = await query.select("id");
-    if (error) state.setError(error.message); else if (selectedId && (!data || data.length === 0)) state.setError("記錄已被其他管理員更新或刪除，請重新載入後再試。"); else { fresh(); await state.reload(); } setBusy(false);
+  const config = CATALOG[table]; const [selectedId, setSelectedId] = useState<string | null>(null); const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
+  const [form, setForm] = useState<Row>({ ...config.sample }); const [busy, setBusy] = useState(false);
+  useEffect(() => { setSelectedId(null); setSelectedVersion(null); setForm({ ...CATALOG[table].sample }); }, [table]);
+  const select = (row: Row) => { setSelectedId(String(row.id)); setSelectedVersion(asText(row.updated_at) || null); setForm(Object.fromEntries(Object.keys(config.sample).map(key => [key, row[key] ?? null]))); };
+  const fresh = () => { setSelectedId(null); setSelectedVersion(null); setForm({ ...config.sample }); };
+  const save = async (event: FormEvent) => {
+    event.preventDefault(); if (!db || busy) return; state.setError("");
+    let payload: Row;
+    try { payload = catalogPayload(table, form, !!selectedId); }
+    catch (cause) { state.setError(cause instanceof Error ? cause.message : "內容格式不正確。"); return; }
+    if (table === "routes" && payload.published === true &&
+        !confirm("請確認官方來源、適用問題及接駁內容已審核。發布不代表已實測到真人。確定發布？")) return;
+    setBusy(true);
+    try {
+      let query = selectedId ? db.from(table).update(payload).eq("id", selectedId) : db.from(table).insert(payload);
+      if (selectedId && selectedVersion) query = query.eq("updated_at", selectedVersion);
+      const { data, error } = await query.select("id");
+      if (error) throw new Error(error.message);
+      if (!data?.length) throw new Error("記錄未能儲存，可能已被其他管理員更新或刪除，請重新載入後再試。");
+      fresh(); state.reload();
+    } catch (cause) { state.setError(cause instanceof Error ? cause.message : "儲存連線失敗，請重試。"); }
+    finally { setBusy(false); }
   };
-  const remove = async () => { if (!db || !selectedId || !confirm(`確定刪除 ${config.label}「${selectedId}」？相關資料可能令刪除失敗。`)) return; const requestTable = table; setBusy(true); let query = db.from(requestTable).delete().eq("id", selectedId); if (selectedVersion) query = query.eq("updated_at", selectedVersion); const { data, error } = await query.select("id"); if (error) state.setError(error.message); else if (!data || data.length === 0) state.setError("記錄已被其他管理員更新或刪除，請重新載入後再試。"); else { fresh(); await state.reload(); } setBusy(false); };
-  return <section className="admin-panel"><div className="admin-toolbar"><label>資料類型<select disabled={busy} value={table} onChange={e => { setTable(e.target.value as CatalogTable); state.reload(); }}>{Object.entries(CATALOG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}</select></label><button className="admin-secondary" disabled={busy || state.loading} onClick={fresh}>新增{config.label}</button></div><PanelState loading={state.loading} error={state.error} />{state.error && <button className="admin-secondary" onClick={() => state.reload()}>重試載入</button>}
+  const remove = async () => {
+    if (!db || busy || !selectedId || !confirm(`確定刪除 ${config.label}「${selectedId}」？相關資料可能令刪除失敗。`)) return;
+    setBusy(true);
+    try {
+      let query = db.from(table).delete().eq("id", selectedId); if (selectedVersion) query = query.eq("updated_at", selectedVersion);
+      const { data, error } = await query.select("id"); if (error) throw new Error(error.message);
+      if (!data?.length) throw new Error("記錄已被其他管理員更新或刪除，請重新載入後再試。");
+      fresh(); state.reload();
+    } catch (cause) { state.setError(cause instanceof Error ? cause.message : "刪除連線失敗，請重試。"); }
+    finally { setBusy(false); }
+  };
+  return <section className="admin-panel"><div className="admin-toolbar"><label>資料類型<select disabled={busy} value={table} onChange={e => { setTable(e.target.value as CatalogTable); }}>{Object.entries(CATALOG).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}</select></label><button className="admin-secondary" disabled={busy || state.loading} onClick={fresh}>新增{config.label}</button></div><PanelState loading={state.loading} error={state.error} />{state.error && <button className="admin-secondary" onClick={() => state.reload()}>重試載入</button>}
     <div className="admin-grid catalog-grid"><div className="admin-card admin-table-wrap"><table><thead><tr><th>ID</th><th>名稱／類型</th><th></th></tr></thead><tbody>{state.rows.map(row => <tr key={String(row.id)} className={selectedId === String(row.id) ? "selected" : ""}><td>{shortId(row.id)}</td><td>{asText(row.name) || asText(row.channel_type) || "—"}</td><td><button className="admin-link" disabled={busy || state.loading} onClick={() => select(row)}>編輯</button></td></tr>)}</tbody></table>{!state.loading && state.rows.length === 0 && <div className="admin-state">未有資料。</div>}</div>
-    <form className="admin-card admin-form" onSubmit={save}><h2>{selectedId ? `編輯 ${selectedId}` : `新增${config.label}`}</h2><p className="admin-muted">只接受：{config.fields.join("、")}</p><label>JSON 內容<textarea className="admin-code" rows={20} value={json} onChange={e => setJson(e.target.value)} spellCheck={false} /></label><div className="admin-actions"><button disabled={busy}>{busy ? "儲存中…" : "儲存"}</button>{selectedId && <button type="button" className="admin-danger" onClick={remove} disabled={busy}>刪除</button>}</div></form></div><Pagination state={state} /></section>;
+    <form className="admin-card admin-form" onSubmit={save}><h2>{selectedId ? `編輯 ${selectedId}` : `新增${config.label}`}</h2><fieldset disabled={busy}><CatalogFields key={table} table={table} value={form} onChange={setForm} editing={!!selectedId} /></fieldset><div className="admin-actions"><button disabled={busy}>{busy ? "儲存中…" : "儲存"}</button>{selectedId && <button type="button" className="admin-danger" onClick={remove} disabled={busy}>刪除</button>}</div></form></div><Pagination state={state} /></section>;
 }
 
 function VerificationPanel() {

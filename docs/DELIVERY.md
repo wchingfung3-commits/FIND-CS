@@ -220,3 +220,43 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
   changes. Preview commit 5aa9e17 reached READY; the deployed Node endpoint returned
   HTTP 405 to GET with Allow: POST, private/no-store and Vary: Authorization. This
   proves deployment of the function, not an authenticated live provider check.
+
+## Core data pilot checkpoint (2026-10-14, Hong Kong)
+
+- User priority is company/problem → human-support channel, first CSL, Hang Seng,
+  IRD, DHL and HKTVmall. Discover complete live menu branches before claiming full
+  coverage; general candidates are not proven fastest or applicable to every issue.
+- Added /#/pilot as an explicit, independent public research preview: five companies,
+  28 source-linked candidate channels, official-source dates, issue selection,
+  contact links, general fallback candidates and per-company verification gaps.
+  It does not fall back from the live catalog RPC, mutate catalog globals, import
+  mock evidence, write database rows or declare any route human-verified.
+- Research source data lives in src/research/pilot.ts. Official services/hotlines
+  are distinct from IVR branches. Only one published keypad instruction was found
+  (Hang Seng suspected-message reporting); it is marked official, untested and
+  issue-specific. No false reports, calls, WhatsApp messages or charges were made.
+- CSL service and sales WhatsApp numbers are separated. Hang Seng HARO is a bot
+  entry with official human-chat escalation described but not tested. IRD automated
+  24-hour service is separated from officer hours. DHL is scoped to Express;
+  conflicting Chinese/English WhatsApp numbers have no contact action. HKTVmall
+  customer support is separated from merchant support, with no invented public
+  telephone/WhatsApp or dynamic menu steps.
+- Guided catalog forms from the paused work were completed alongside this pilot:
+  searchable 50-row paged parent choices, company-scoped issues, issue clearing on
+  company change, newline steps, required references, safe links, forced new drafts,
+  explicit publish confirmation and existing version-conflict checks. Database RLS,
+  revision invalidation and audit remain the authorization/evidence boundaries.
+- Build includes source-link integrity, conflict suppression, missing fallback,
+  draft normalization, unsafe-link and no-verification/speed-claim rejection tests.
+- Remaining core blockers: real menu observation, permitted WhatsApp account/channel,
+  caller ID and phone-provider access, short-code reachability, bounded execution,
+  reviewed evidence persistence, complete menu inventory and source conflict review.
+  Research-preview sources are versioned code, not yet the live database catalog.
+  Source changes must be rechecked; a page observation is not a support interaction.
+- Validation completed: full build (typecheck/lint/data/Agent/auth/pagination/SQL/
+  provider/catalog/pilot suites) passed. Required Chromium regression passed for
+  catalog parent pagination/filtering/reset, unsafe-link denial, failed save,
+  cancelled publish confirmation, version-conflict response, lookup retry, all five
+  pilot tabs, issue-specific official instructions, conflicting WhatsApp action
+  suppression and mobile overflow. Browser APIs were mocked; no hosted writes or
+  provider interactions. Added a public demo-banner link to the separate pilot.

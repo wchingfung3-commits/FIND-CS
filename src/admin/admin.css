@@ -21,3 +21,9 @@
 @media (max-width: 760px) { .admin-shell { padding: 24px 14px; }.admin-header,.admin-account { align-items: flex-start; }.admin-account { flex-direction: column; }.admin-grid,.catalog-grid { grid-template-columns: 1fr; }.admin-two { grid-template-columns: 1fr; }.admin-header { gap: 20px; }.admin-setup,.admin-login { padding: 22px; }.admin-toolbar { align-items: flex-end; } }
 
 .admin-job-plan { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; padding: 14px; background: #f0f3f7; border-radius: 8px; }
+
+.admin-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.admin-reference { padding: 12px; margin-bottom: 14px; border: 1px solid #dfe4ec; border-radius: 8px; }
+.admin-reference .admin-actions { flex-wrap: wrap; }
+.admin-shell .admin-check { display: flex; align-items: flex-start; }
+.admin-shell .admin-check input { width: auto; margin-top: 3px; }

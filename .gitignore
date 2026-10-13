@@ -32,3 +32,7 @@ dist-ssr
 
 .env.*
 !.env.example
+
+.catalog-build
+
+.pilot-build
