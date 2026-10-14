@@ -260,3 +260,21 @@ Do not expand privileges, incur charges, or deploy Production implicitly.
   pilot tabs, issue-specific official instructions, conflicting WhatsApp action
   suppression and mobile overflow. Browser APIs were mocked; no hosted writes or
   provider interactions. Added a public demo-banner link to the separate pilot.
+
+## Vapi / Twilio connection checkpoint (2026-10-14)
+
+- User registered Vapi and Twilio. Replaced active Retell diagnostics with fixed-host
+  read-only Vapi assistant-list and Twilio number-list checks using a dedicated API
+  key (not account Auth Token). All calls follow Supabase Auth + admin authorization.
+- UI requires exactly Browserbase/Vapi/Twilio with executionEnabled=false; providers'
+  account data and secrets are discarded. Invalid account/key SID format fails
+  before Twilio requests; redirects are denied. Empty metadata lists are allowed.
+- No assistant/number creation, phone import, calls, SMS or WhatsApp messages.
+  Phone execution, callbacks, provider linking and evidence persistence remain
+  blocked. The setup document specifies US1 Restricted list-only credentials.
+- Full build and provider failure/redaction/no-execution tests passed locally.
+  Real credential validation still requires the owner to configure Vercel Secrets;
+  account registration alone is not a connected or accepted phone integration.
+- Required Chromium regressions passed after switching the connection response to
+  three providers. Vercel metadata inspection found Browserbase Preview variables
+  already configured and no Vapi/Twilio variable names; no secrets were decrypted.

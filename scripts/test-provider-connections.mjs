@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { inspectConnections } from '../server/provider-connections.mjs';
 const env = { VITE_SUPABASE_URL: 'https://fixture.supabase.co', VITE_SUPABASE_ANON_KEY: 'public-fixture',
-  BROWSERBASE_API_KEY: 'private-browser-fixture', BROWSERBASE_PROJECT_ID: 'project-fixture', RETELL_API_KEY: 'private-voice-fixture' };
+  BROWSERBASE_API_KEY: 'private-browser-fixture', BROWSERBASE_PROJECT_ID: 'project-fixture', VAPI_PRIVATE_API_KEY: 'private-voice-fixture', TWILIO_ACCOUNT_SID: 'AC' + 'a'.repeat(32), TWILIO_API_KEY_SID: 'SK' + 'b'.repeat(32), TWILIO_API_KEY_SECRET: 'private-twilio-fixture' };
 const authorization = 'Bearer authenticated-fixture';
 let requests = [], admin = true, authStatus = 200, providerStatus = 200, malformed = false, throws = false;
 const fetchImpl = async (url, options) => {
@@ -10,7 +10,7 @@ const fetchImpl = async (url, options) => {
   if (url.endsWith('/auth/v1/user')) return Response.json({ id: 'user-fixture' }, { status: authStatus });
   if (url.endsWith('/rpc/is_admin')) return Response.json(admin);
   if (throws) throw new Error('upstream secret private-voice-fixture');
-  return Response.json(malformed ? {} : url.includes('browserbase') ? { id: 'project-fixture', ownerId: 'private-owner' } : { items: [] }, { status: providerStatus });
+  return Response.json(malformed ? {} : url.includes('browserbase') ? { id: 'project-fixture', ownerId: 'private-owner' } : url.includes('twilio.com') ? { incoming_phone_numbers: [], next_page_uri: null } : [], { status: providerStatus });
 };
 const run = (patch = {}) => inspectConnections({ authorization, env, fetchImpl, ...patch });
 assert.equal((await run({ authorization: undefined })).status, 401); assert.equal(requests.length, 0);
@@ -24,11 +24,16 @@ let result = await run(); assert.equal(result.status, 200);
 assert.ok(result.body.providers.every(p => p.state === 'api_connected' && p.executionEnabled === false));
 assert.ok(!JSON.stringify(result).includes('private-'));
 assert.equal(requests.filter(r => r.url.includes('/projects/')).length, 1);
-const voice = requests.find(r => r.url.includes('retellai.com'));
-assert.equal(voice.url, 'https://api.retellai.com/v2/list-agents?limit=1');
-assert.equal(voice.options.method, 'POST');
-assert.deepEqual(JSON.parse(voice.options.body), { filter_criteria: { channel: { type: 'string', op: 'eq', value: 'voice' } } });
-assert.ok(!requests.some(r => /create-phone-call|\/sessions/.test(r.url)));
+const voice = requests.find(r => r.url.includes('vapi.ai'));
+assert.equal(voice.url, 'https://api.vapi.ai/assistant');
+assert.equal(voice.options.method, undefined);
+assert.equal(voice.options.headers.Authorization, 'Bearer private-voice-fixture');
+const telephony = requests.find(r => r.url.includes('twilio.com'));
+assert.equal(telephony.url, `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers.json?PageSize=1`);
+assert.equal(telephony.options.method, undefined);
+assert.equal(telephony.options.headers.Authorization, `Basic ${Buffer.from(`${env.TWILIO_API_KEY_SID}:${env.TWILIO_API_KEY_SECRET}`).toString('base64')}`);
+assert.ok(!requests.some(r => /Calls.json|\/call$|\/sessions/.test(r.url)));
+assert.ok(requests.filter(r => /vapi.ai|twilio.com/.test(r.url)).every(r => !r.options.method || r.options.method === 'GET'));
 for (const [status, state] of [[401, 'credentials_rejected'], [403, 'credentials_rejected'], [429, 'rate_limited'], [500, 'provider_error']]) {
   providerStatus = status; result = await run(); assert.ok(result.body.providers.every(p => p.state === state));
 }
@@ -39,6 +44,9 @@ requests = []; result = await run({ env: { VITE_SUPABASE_URL: env.VITE_SUPABASE_
 assert.ok(result.body.providers.every(p => p.state === 'missing_config')); assert.equal(requests.length, 2);
 result = await run({ env: { ...env, BROWSERBASE_PROJECT_ID: '../private?secret' } });
 assert.equal(result.body.providers[0].state, 'invalid_config');
+requests = []; result = await run({ env: { ...env, TWILIO_ACCOUNT_SID: '../secret' } });
+assert.equal(result.body.providers[2].state, 'invalid_config'); assert.ok(!requests.some(r => r.url.includes('twilio.com')));
+assert.deepEqual(result.body.providers.map(p => p.provider), ['browserbase','vapi','twilio']);
 console.log('PASS provider authorization, credential checks, redaction, failures and no-execution boundary');
 const { default: handler } = await import('../api/agent-connections.mjs');
 const cacheHeaders = {};

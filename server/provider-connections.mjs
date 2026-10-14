@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 // Read-only credential checks. This module never creates a call/session or verification.
 const jsonHeaders = { 'Content-Type': 'application/json' };
 const missing = provider => ({ provider, state: 'missing_config', executionEnabled: false });
@@ -12,18 +13,23 @@ async function providerCheck(provider, env, fetchImpl) {
     if (!/^[a-zA-Z0-9-]{1,100}$/.test(expectedProject)) return { ...missing(provider), state: 'invalid_config' };
     url = `https://api.browserbase.com/v1/projects/${expectedProject}`;
     options = { headers: { 'X-BB-API-Key': env.BROWSERBASE_API_KEY } };
+  } else if (provider === 'vapi') {
+    if (!env.VAPI_PRIVATE_API_KEY) return missing(provider);
+    url = 'https://api.vapi.ai/assistant';
+    options = { headers: { Authorization: `Bearer ${env.VAPI_PRIVATE_API_KEY}` } };
   } else {
-    if (!env.RETELL_API_KEY) return missing(provider);
-    // Current v2 endpoint is POST, but lists metadata without creating agents/calls.
-    url = 'https://api.retellai.com/v2/list-agents?limit=1';
-    options = { method: 'POST', headers: { ...jsonHeaders, Authorization: `Bearer ${env.RETELL_API_KEY}` },
-      body: JSON.stringify({ filter_criteria: { channel: { type: 'string', op: 'eq', value: 'voice' } } }) };
+    if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_API_KEY_SID || !env.TWILIO_API_KEY_SECRET) return missing(provider);
+    if (!/^AC[0-9a-fA-F]{32}$/.test(env.TWILIO_ACCOUNT_SID) || !/^SK[0-9a-fA-F]{32}$/.test(env.TWILIO_API_KEY_SID))
+      return { ...missing(provider), state: 'invalid_config' };
+    url = `https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/IncomingPhoneNumbers.json?PageSize=1`;
+    const credentials = Buffer.from(`${env.TWILIO_API_KEY_SID}:${env.TWILIO_API_KEY_SECRET}`).toString('base64');
+    options = { headers: { Authorization: `Basic ${credentials}` } };
   }
   try {
     const response = await request(fetchImpl, url, options);
     if (!response.ok) return { provider, state: [401, 403].includes(response.status) ? 'credentials_rejected' : response.status === 429 ? 'rate_limited' : 'provider_error', executionEnabled: false };
     const data = await response.json();
-    const valid = provider === 'browserbase' ? data?.id === expectedProject : Array.isArray(data?.items);
+    const valid = provider === 'browserbase' ? data?.id === expectedProject : provider === 'vapi' ? Array.isArray(data) : Array.isArray(data?.incoming_phone_numbers);
     if (!valid) return { provider, state: 'invalid_response', executionEnabled: false };
     return { provider, state: 'api_connected', executionEnabled: false };
   } catch { return { provider, state: 'connection_failed', executionEnabled: false }; }
@@ -46,6 +52,6 @@ export async function inspectConnections({ authorization, env, fetchImpl = fetch
     if (!adminResponse.ok) throw new Error();
     if (await adminResponse.json() !== true) return { status: 403, body: { error: 'administrator_required' } };
   } catch { return { status: 503, body: { error: 'authorization_unavailable' } }; }
-  const providers = await Promise.all(['browserbase', 'retell'].map(provider => providerCheck(provider, env, fetchImpl)));
+  const providers = await Promise.all(['browserbase', 'vapi', 'twilio'].map(provider => providerCheck(provider, env, fetchImpl)));
   return { status: 200, body: { checkedAt: new Date().toISOString(), providers, executionEnabled: false } };
 }

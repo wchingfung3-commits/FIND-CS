@@ -6,7 +6,7 @@ const messages: Record<string, string> = {
   rate_limited: "服務限制請求，請稍後再試", provider_error: "供應商暫時無法使用",
   invalid_response: "服務回應格式不符", connection_failed: "連線失敗或逾時",
 };
-type Connection = { provider: "browserbase" | "retell"; state: string; executionEnabled: false };
+type Connection = { provider: "browserbase" | "vapi" | "twilio"; state: string; executionEnabled: false };
 export function ProviderConnections() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [busy, setBusy] = useState(false);
@@ -25,8 +25,8 @@ export function ProviderConnections() {
         signal: AbortSignal.timeout(25000) });
       if (!response.ok) throw new Error(response.status === 401 ? "登入已失效，請重新登入。" : response.status === 403 ? "此帳戶沒有連線檢查權限。" : "伺服器連線檢查失敗，請稍後再試。");
       const result = await response.json();
-      if (!result || typeof result !== "object" || result.executionEnabled !== false || !Array.isArray(result.providers) || result.providers.length !== 2 ||
-          !["browserbase", "retell"].every(provider => result.providers.filter((item: Connection) => item?.provider === provider && item.executionEnabled === false && Object.prototype.hasOwnProperty.call(messages, item.state)).length === 1)) {
+      if (!result || typeof result !== "object" || result.executionEnabled !== false || !Array.isArray(result.providers) || result.providers.length !== 3 ||
+          !["browserbase", "vapi", "twilio"].every(provider => result.providers.filter((item: Connection) => item?.provider === provider && item.executionEnabled === false && Object.prototype.hasOwnProperty.call(messages, item.state)).length === 1)) {
         throw new Error("連線檢查回應無效，未允許執行。");
       }
       if (request === generation.current) setConnections(result.providers);
@@ -36,10 +36,10 @@ export function ProviderConnections() {
   }
   return <div className="admin-card admin-form">
     <h2>Voice／Browser 服務連線</h2>
-    <p className="admin-muted">由伺服器檢查 Browserbase 專案及 Retell API 權限。密鑰只存放於 Vercel Secret；檢查不會建立瀏覽器工作階段或撥打電話。</p>
+    <p className="admin-muted">由伺服器檢查 Browserbase、Vapi 及 Twilio API 權限。密鑰只存放於 Vercel Secret；檢查不會建立瀏覽器工作階段或撥打電話。</p>
     <button type="button" disabled={busy} onClick={() => void check()}>{busy ? "檢查連線中…" : "檢查服務連線"}</button>
     {error && <div className="admin-error" role="alert">{error}</div>}
-    <div role="status">{connections.map(item => <p key={item.provider}>{item.provider === "browserbase" ? "Browserbase" : "Retell Voice"}：{messages[item.state]}</p>)}</div>
-    <p className="admin-muted">Voice 仍需完成外撥 KYC、香港電話服務及費用上限設定；API 驗證成功不代表電話已可使用。</p>
+    <div role="status">{connections.map(item => <p key={item.provider}>{item.provider === "browserbase" ? "Browserbase" : item.provider === "vapi" ? "Vapi Voice" : "Twilio 電話"}：{messages[item.state]}</p>)}</div>
+    <p className="admin-muted">Voice 仍需接駁 Vapi 與 Twilio、確認可用主叫號碼、測試接收號碼、香港撥號權限及費用上限。API 驗證成功不代表已能打電話；Twilio 試用只能致電已驗證的接收號碼。</p>
   </div>;
 }

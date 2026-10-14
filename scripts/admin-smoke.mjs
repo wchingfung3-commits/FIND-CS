@@ -134,7 +134,8 @@ try {
   });
   let providerReply = { executionEnabled: false, providers: [
     { provider: "browserbase", state: "missing_config", executionEnabled: false },
-    { provider: "retell", state: "api_connected", executionEnabled: false },
+    { provider: "vapi", state: "api_connected", executionEnabled: false },
+    { provider: "twilio", state: "missing_config", executionEnabled: false },
   ] };
   let providerResponseStatus = 200;
   await admin.route("**/api/agent-connections", route => {
@@ -154,7 +155,7 @@ try {
   await admin.getByText("未有任務紀錄。", { exact: true }).waitFor();
   await admin.getByRole("button", { name: "檢查服務連線", exact: true }).click();
   await admin.getByText("Browserbase：未設定伺服器連線資料", { exact: true }).waitFor();
-  await admin.getByText("Retell Voice：API 驗證成功（尚未開放執行）", { exact: true }).waitFor();
+  await admin.getByText("Vapi Voice：API 驗證成功（尚未開放執行）", { exact: true }).waitFor();
   providerReply = { executionEnabled: true, providers: [] };
   await admin.getByRole("button", { name: "檢查服務連線", exact: true }).click();
   await admin.getByText("連線檢查回應無效，未允許執行。", { exact: true }).waitFor();
